@@ -15,7 +15,7 @@
 
 Для сборки из исходников: `cargo build --manifest-path launcher/Cargo.toml --release --locked --features offline`. Без `--features offline` сохраняется поведение оригинального лаунчера.
 
-Выпуск новой версии: отправьте тег `offline-vX.Y.Z` в этот репозиторий. Workflow **Horizon Offline Windows** проверит код, соберёт `.exe` со встроенной C runtime и опубликует GitHub Release. Ручной запуск workflow сохраняет результат в Artifacts, без публикации. Оригинальные workflow проекта сохранены для сверки с upstream и выключены в этом репозитории, поскольку они обслуживают инфраструктуру авторов.
+Выпуск новой версии: отправьте тег `offline-vX.Y.Z` в этот репозиторий. Workflow **Horizon Offline Windows** проверит код, соберёт `.exe` со встроенной C runtime и опубликует GitHub Release. Для явного запуска выпуска используйте `gh workflow run offline-release.yml --repo COMF2222/horizon-offline --ref offline-vX.Y.Z`. Ручной запуск на ветке сохраняет результат в Artifacts, а запуск на теге публикует релиз. Оригинальные workflow проекта сохранены для сверки с upstream и выключены в этом репозитории, поскольку они обслуживают инфраструктуру авторов.
 
 Оригинальный проект и его лицензия MIT сохранены ниже.
 
