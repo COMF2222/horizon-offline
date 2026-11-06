@@ -10,7 +10,7 @@ impl Launcher {
         if cfg!(feature = "offline") {
             Some(true)
         } else {
-            self.owner
+            self.owner_shown()
         }
     }
 
