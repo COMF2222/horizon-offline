@@ -1619,7 +1619,7 @@ impl Accounts {
     /// Plays as `who`: an account, an offline name (kept, only beside an account that owns the
     /// game), or the game's own name.
     pub fn play_as(&mut self, store: &dyn SecretStore, who: Player) -> Result<(), String> {
-        self.play_as_with(store, who, false)
+        self.play_as_with(store, who, cfg!(feature = "offline"))
     }
 
     /// [`Self::play_as`], where `offline_without_owner` (the window's hidden developer option,
@@ -1866,8 +1866,12 @@ pub fn launch_for_game(
     accounts: &mut Accounts,
     offline_without_owner: bool,
 ) -> Result<Launch, NoOwner> {
+    // A local profile needs no network request, token, or fabricated owner.
+    if cfg!(feature = "offline") && accounts.selected().is_none() {
+        return Ok(Launch::default());
+    }
     match launch(ep, client_id, store, accounts) {
-        Err(NoOwner) if offline_without_owner => Ok(Launch::default()),
+        Err(NoOwner) if offline_without_owner || cfg!(feature = "offline") => Ok(Launch::default()),
         pass => pass,
     }
 }

@@ -1,0 +1,78 @@
+name: Horizon Offline Windows
+
+on:
+  push:
+    tags: ['offline-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      # A standalone .exe must not require the Visual C++ redistributable.
+      RUSTFLAGS: -C target-feature=+crt-static
+      HORIZON_TELEMETRY_URL: 'off'
+      HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
+      HORIZON_NO_AUDIO: '1'
+      HORIZON_NO_KEYCHAIN: '1'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: launcher
+          shared-key: offline-windows-x64
+      - name: Isolate test data
+        run: |
+          $scratch = Join-Path $env:RUNNER_TEMP 'horizon-offline-tests'
+          foreach ($name in @('HORIZON_HOME', 'HORIZON_LAUNCHER_HOME', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'HORIZON_LAUNCHER_TRASH', 'HORIZON_LAUNCHER_CLIPBOARD', 'HORIZON_LAUNCHER_DESKTOP')) {
+            "$name=$(Join-Path $scratch $name)" >> $env:GITHUB_ENV
+          }
+      - name: Check formatting
+        run: cargo fmt --manifest-path launcher/Cargo.toml --all -- --check
+      - name: Check public files
+        run: python tools/check_public_tree.py
+      - name: Test offline profiles and launcher behavior
+        run: cargo test --manifest-path launcher/Cargo.toml --release --locked --features offline --lib --bins --tests
+      - name: Check lints
+        run: cargo clippy --manifest-path launcher/Cargo.toml --release --locked --features offline --all-targets -- -D warnings
+      - name: Build standalone launcher
+        run: cargo build --manifest-path launcher/Cargo.toml --release --locked --features offline --bin horizon-launcher
+      - name: Package executable
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item -LiteralPath launcher/target/release/horizon-launcher.exe -Destination dist/Horizon-Offline.exe
+          python tools/check_pe_arch.py x64 dist/Horizon-Offline.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item -LiteralPath LICENSE,THIRD_PARTY_NOTICES.md -Destination dist
+          (Get-FileHash -LiteralPath dist/Horizon-Offline.exe -Algorithm SHA256).Hash.ToLower() + '  Horizon-Offline.exe' | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Horizon-Offline-Windows-x64
+          path: dist/*
+          if-no-files-found: error
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/offline-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$env:RELEASE_TAG" dist/Horizon-Offline.exe dist/SHA256SUMS.txt dist/LICENSE dist/THIRD_PARTY_NOTICES.md --verify-tag --title "Horizon Offline $env:RELEASE_TAG" --notes-file packaging/offline/RELEASE.md --latest

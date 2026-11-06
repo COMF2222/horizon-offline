@@ -7,6 +7,10 @@ description = "Downloads, prepares and starts Horizon builds"
 
 [workspace]
 
+[features]
+# The standalone distribution: local profiles and preparation without Microsoft sign-in.
+offline = []
+
 [dependencies]
 # The catalog and mod-owned trait injections share their generation rules.
 horizon-mod-api-gen = { path = "../crates/horizon-mod-api-gen" }

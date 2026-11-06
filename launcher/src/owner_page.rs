@@ -5,6 +5,15 @@
 use super::*;
 
 impl Launcher {
+    /// Offline builds can prepare local resources before any account has signed in.
+    pub(crate) fn preparation_access(&self) -> Option<bool> {
+        if cfg!(feature = "offline") {
+            Some(true)
+        } else {
+            self.owner
+        }
+    }
+
     /// Whether the screen covers the window: no owner, and either Play was refused or the player
     /// hasn't read it yet. The data question comes first.
     pub(crate) fn asking_owner(&self) -> bool {
@@ -18,7 +27,7 @@ impl Launcher {
     /// an owner (`dev_options`) hides the gate, as if the keychain hadn't answered yet.
     pub(crate) fn owner_shown(&self) -> Option<bool> {
         match self.owner {
-            Some(false) if self.settings.dev_offline => None,
+            Some(false) if self.settings.offline_without_owner() => None,
             owner => owner,
         }
     }

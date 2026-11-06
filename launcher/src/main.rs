@@ -1224,7 +1224,7 @@ impl Launcher {
                             }
                         };
                         // Past the gate by the developer option alone is no owner.
-                        if !self.settings.dev_offline {
+                        if !self.settings.offline_without_owner() {
                             self.owner = Some(true);
                         }
                         if let Some(file) = file {
@@ -1879,7 +1879,7 @@ impl Launcher {
         self.starting_client = Some(tag.clone());
         self.play_pressed = Some(Instant::now());
         let tx = self.tx.clone();
-        let offline_without_owner = self.settings.dev_offline;
+        let offline_without_owner = self.settings.offline_without_owner();
         // Registry mods update before the game reads them (`horizon::auto`); native mods only
         // at start, where a build can follow.
         let auto = self
@@ -3380,12 +3380,16 @@ impl Launcher {
         // Not prepared: an owner can have Horizon download Minecraft from Mojang; without an
         // owner there is nothing to play, so signing in comes first.
         let first = (!prepared && !self.preparing)
-            .then_some(self.owner_shown())
+            .then_some(self.preparation_access())
             .flatten();
         // No launcher folder with Minecraft on this computer: an owner needs none.
         let no_install = self.settings.minecraft_dir.is_none();
         let resources_value = match first {
             _ if self.preparing => tr("Preparing…").to_string(),
+            _ if !prepared && cfg!(feature = "offline") => trf(
+                "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
+                &[("version", &version)],
+            ),
             Some(true) if no_install => trf(
                 "Not prepared. Play downloads Minecraft {version} from Mojang for your account and prepares it.",
                 &[("version", &version)],
@@ -3466,7 +3470,9 @@ impl Launcher {
         let minecraft = self.settings.minecraft_dir.as_deref().map_or_else(
             || {
                 div()
-                    .child(if owner {
+                    .child(if cfg!(feature = "offline") {
+                        tr("No install needed. The required files are downloaded on first Play.")
+                    } else if owner {
                         tr("None needed: Horizon downloads Minecraft from Mojang for your account.")
                     } else {
                         tr("Not found. Choose the folder where your launcher keeps Minecraft.")

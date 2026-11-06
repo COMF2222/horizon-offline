@@ -23,6 +23,9 @@ impl Launcher {
 
     /// The section, when revealed or when one of its options is on.
     pub(super) fn dev_options_section(&self, cx: &mut Context<Self>) -> Option<Div> {
+        if cfg!(feature = "offline") {
+            return None;
+        }
         if !self.dev_options && !self.settings.dev_offline {
             return None;
         }

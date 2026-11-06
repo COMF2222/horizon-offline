@@ -928,7 +928,11 @@ pub fn data_dir() -> PathBuf {
     }
     dirs::data_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join("horizon-launcher")
+        .join(if cfg!(feature = "offline") {
+            "horizon-offline-launcher"
+        } else {
+            "horizon-launcher"
+        })
 }
 
 /// A canonical path without Windows' verbatim prefix: `canonicalize` gives `\\?\C:\...` there,
@@ -1970,15 +1974,17 @@ fn preparer_binary(dir: &Path) -> Option<PathBuf> {
     binary.is_file().then_some(binary)
 }
 
-/// Downloads the pinned version from Mojang into `dir` when an account in the launcher owns
-/// Minecraft (asked again now), else says what signing in would do, as the last line of the
-/// not-found error.
+/// Downloads the pinned version from Mojang into `dir`. Standard builds require a renewed
+/// owner; the offline distribution prepares its files without an authentication session.
 fn download_for_owner(
     pins: &sources::Pins,
     dir: &Path,
     fetch: sources::Fetch,
     log: &dyn Fn(String),
 ) -> Result<(), String> {
+    if cfg!(feature = "offline") {
+        return download_for(pins, dir, Ok(account::Launch::default()), false, fetch, log);
+    }
     let mut accounts = account::Accounts::load();
     // The strict gate, never `launch_for_game`: the developer option that lets offline names
     // play without an owner must not download the game for them.
@@ -2112,8 +2118,7 @@ pub fn java_game(
     )
 }
 
-/// What [`download_for_owner`] does with the owner gate's answer: Mojang's files only for its
-/// `owner`, an account the services said owns the game just now.
+/// Applies this distribution's download policy, preserving Mojang's checksum checks in both modes.
 fn download_for(
     pins: &sources::Pins,
     dir: &Path,
@@ -2123,7 +2128,14 @@ fn download_for(
     log: &dyn Fn(String),
 ) -> Result<(), String> {
     let v = &pins.version;
-    match pass {
+    let name = match pass {
+        _ if cfg!(feature = "offline") => {
+            log(crate::i18n::trf(
+                "Downloading Minecraft {version} from Mojang for offline play",
+                &[("version", v)],
+            ));
+            None
+        }
         Ok(account::Launch {
             owner: Some((owner, _)),
             ..
@@ -2132,30 +2144,37 @@ fn download_for(
             log(format!(
                 "{name} owns Minecraft: downloading {v} from Mojang"
             ));
-            let os = match sources::Os::current() {
-                sources::Os::Linux => "linux",
-                sources::Os::MacOs => "osx",
-                sources::Os::Windows => "windows",
-            };
-            mojang::download(pins, dir, os, 8, fetch, &mojang::CANCEL, log).map_err(|e| {
-                format!("\n  • Horizon tried to download {v} from Mojang for {name}, but: {e}")
-            })
+            Some(name)
         }
         // An owner by its last answer, who can't be asked now.
-        Ok(pass) => Err(format!(
+        Ok(pass) => return Err(format!(
             "\n  • Downloading {v} from Mojang needs your Microsoft account, which could not be \
              checked: {}",
             pass.offline.unwrap_or_default()
         )),
-        Err(_) if signed_in => Err(
+        Err(_) if signed_in => return Err(
             "\n  • No signed-in account owns Minecraft: Java Edition, so Horizon can't download it."
                 .into(),
         ),
-        Err(_) => Err(format!(
+        Err(_) => return Err(format!(
             "\n  • Or sign in with the Microsoft account that owns Minecraft: Horizon then \
              downloads {v} from Mojang itself."
         )),
-    }
+    };
+    let os = match sources::Os::current() {
+        sources::Os::Linux => "linux",
+        sources::Os::MacOs => "osx",
+        sources::Os::Windows => "windows",
+    };
+    mojang::download(pins, dir, os, 8, fetch, &mojang::CANCEL, log).map_err(|e| match name {
+        Some(name) => {
+            format!("\n  • Horizon tried to download {v} from Mojang for {name}, but: {e}")
+        }
+        None => crate::i18n::trf(
+            "Could not download Minecraft {version} from Mojang: {error}",
+            &[("version", v), ("error", &e)],
+        ),
+    })
 }
 
 /// The Java home for this version: a runtime for precompiled exporters, a JDK for older
@@ -2530,7 +2549,11 @@ pub fn game_home() -> PathBuf {
     }
     dirs::data_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join("horizon")
+        .join(if cfg!(feature = "offline") {
+            "horizon-offline"
+        } else {
+            "horizon"
+        })
 }
 
 /// Whether No AI is on: every AI feature hidden and off (`horizon_core::no_ai`, kept in the
@@ -3361,9 +3384,11 @@ fn launcher_asset_running_from(appimage: bool) -> Option<&'static str> {
     }
 }
 
-/// Development builds and `HORIZON_LAUNCHER_NO_SELF_UPDATE` never replace themselves.
+/// Development and offline builds and `HORIZON_LAUNCHER_NO_SELF_UPDATE` never replace themselves.
 pub fn self_update_allowed() -> bool {
-    !cfg!(debug_assertions) && std::env::var_os("HORIZON_LAUNCHER_NO_SELF_UPDATE").is_none()
+    !cfg!(feature = "offline")
+        && !cfg!(debug_assertions)
+        && std::env::var_os("HORIZON_LAUNCHER_NO_SELF_UPDATE").is_none()
 }
 
 /// The version in `horizon-launcher --version`'s output (`horizon-launcher 0.1.5`).
@@ -4334,6 +4359,11 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// Local profiles are always available in the standalone offline distribution.
+    pub fn offline_without_owner(&self) -> bool {
+        cfg!(feature = "offline") || self.dev_offline
+    }
+
     pub fn load() -> Self {
         Self::parse(&fs::read_to_string(data_dir().join("settings.json")).unwrap_or_default())
     }
@@ -4595,10 +4625,70 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
     }
 
+    #[test]
+    #[cfg(feature = "offline")]
+    fn offline_download_checks_files_and_reuses_them_without_network() {
+        let dir =
+            std::env::temp_dir().join(format!("horizon-offline-download-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let client = b"original fake client for offline download tests";
+        let index = br#"{"objects":{}}"#;
+        let manifest = serde_json::json!({
+            "downloads": {"client": {
+                "url": "https://piston-data.mojang.com/fake-client.jar",
+                "sha1": sources::sha1_hex(client), "size": client.len()
+            }},
+            "libraries": [],
+            "assetIndex": {"id": "test", "url": "https://piston-meta.mojang.com/fake-index.json",
+                "sha1": sources::sha1_hex(index), "size": index.len()}
+        })
+        .to_string()
+        .into_bytes();
+        let pins = sources::Pins {
+            version: "26.3".into(),
+            client_sha1: sources::sha1_hex(client),
+            manifests: vec![sources::sha1_hex(&manifest)],
+        };
+        let fetch = |url: &str| -> Result<Vec<u8>, String> {
+            if url.ends_with("/26.3.json") {
+                Ok(manifest.clone())
+            } else if url.ends_with("fake-client.jar") {
+                Ok(client.to_vec())
+            } else if url.ends_with("fake-index.json") {
+                Ok(index.to_vec())
+            } else {
+                Err(format!("Unexpected request: {url}"))
+            }
+        };
+        download_for(&pins, &dir, Err(account::NoOwner), false, &fetch, &|_| {}).unwrap();
+        let jar = dir.join("versions/26.3/26.3.jar");
+        assert_eq!(fs::read(&jar).unwrap(), client);
+        let no_network = |url: &str| -> Result<Vec<u8>, String> {
+            panic!("Prepared files must be reused offline: {url}")
+        };
+        download_for(
+            &pins,
+            &dir,
+            Err(account::NoOwner),
+            false,
+            &no_network,
+            &|_| {},
+        )
+        .unwrap();
+        fs::write(&jar, b"damaged cache").unwrap();
+        let corrupt = |_: &str| Ok(b"invalid download".to_vec());
+        assert!(
+            download_for(&pins, &dir, Err(account::NoOwner), false, &corrupt, &|_| {}).is_err()
+        );
+        assert_eq!(fs::read(&jar).unwrap(), b"damaged cache");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// The launcher downloads Mojang's game files (client jar, libraries, assets) only for an
     /// account the services said owns the game: never without one, and never past the gate by
     /// the developer option (`Settings::dev_offline`), whose pass has no owner.
     #[test]
+    #[cfg(not(feature = "offline"))]
     fn mojang_downloads_only_for_an_owner() {
         let dir = std::env::temp_dir().join(format!("horizon-owner-only-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
@@ -4693,8 +4783,8 @@ mod tests {
         assert!(body("download_for").contains("mojang::download("));
         assert!(body("download_for_owner").contains("account::launch("));
         assert!(!body("download_for_owner").contains("launch_for_game("));
-        // `download_for` is defined once and called once, by `download_for_owner`.
-        assert_eq!(backend.matches("download_for(").count(), 2);
+        // One definition, and the standard/offline branches in `download_for_owner`.
+        assert_eq!(backend.matches("download_for(").count(), 3);
         assert!(body("download_for_owner").contains("download_for("));
         // Refilling an incomplete store asks the same gate and names no host or download itself.
         assert!(body("refill_own_store").contains("download_for_owner("));

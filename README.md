@@ -1,3 +1,26 @@
+# Horizon Offline
+
+Наша Windows-сборка лаунчера [Horizon](https://github.com/horizon-rust/horizon) с локальными профилями и одиночной игрой без обязательного входа в Microsoft.
+
+**[Скачать Horizon-Offline.exe](https://github.com/COMF2222/horizon-offline/releases/latest/download/Horizon-Offline.exe)** · [Все выпуски](https://github.com/COMF2222/horizon-offline/releases) · [Сборки](https://github.com/COMF2222/horizon-offline/actions/workflows/offline-release.yml)
+
+1. Скачайте `.exe` и откройте его на Windows x64.
+2. При первом запуске дождитесь установки сборки Horizon и нажмите **Играть**.
+3. Лаунчер сам загрузит нужную версию Minecraft (сейчас Java 26.3), библиотеки, ресурсы и Java с серверов Mojang, проверит файлы и подготовит их.
+4. После подготовки запускайте одиночные миры офлайн. При желании задайте ник в **Настройки → Аккаунт**.
+
+Интернет нужен для первой подготовки. Отдельно устанавливать Minecraft, Java, Python или Rust не требуется. Исполняемый файл не содержит файлов Minecraft: они загружаются на компьютере игрока. Серверы с проверкой аккаунта требуют действительную Microsoft-сессию.
+
+Данные этой сборки хранятся отдельно: `%APPDATA%\horizon-offline-launcher` и `%APPDATA%\horizon-offline`. Официальный лаунчер не заменяет её своим автообновлением. Игровой клиент загружается из подписанных выпусков оригинального Horizon.
+
+Для сборки из исходников: `cargo build --manifest-path launcher/Cargo.toml --release --locked --features offline`. Без `--features offline` сохраняется поведение оригинального лаунчера.
+
+Выпуск новой версии: отправьте тег `offline-vX.Y.Z` в этот репозиторий. Workflow **Horizon Offline Windows** проверит код, соберёт `.exe` со встроенной C runtime и опубликует GitHub Release. Ручной запуск workflow сохраняет результат в Artifacts, без публикации. Оригинальные workflow проекта сохранены для сверки с upstream; в этом репозитории их следует держать выключенными, поскольку они обслуживают инфраструктуру авторов.
+
+Оригинальный проект и его лицензия MIT сохранены ниже.
+
+---
+
 <p align="center">
   <img src="docs/media/banner.webp" alt="The Horizon website: the game you know, rebuilt in Rust" width="100%">
 </p>
