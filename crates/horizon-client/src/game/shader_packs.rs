@@ -184,6 +184,31 @@ impl Game<'_> {
                 renderer.drop_shader_packs();
             }
         }
+        // A pack whose pipelines were building runs once they are built, or is turned off.
+        if let Some((dimension, name, started, report)) =
+            self.renderer.as_mut().and_then(|r| r.poll_shader_pack())
+        {
+            match report {
+                Ok(Some((programs, notes))) => {
+                    for note in notes {
+                        log::warn!("shader pack {name}: {note}");
+                    }
+                    log::info!(
+                        "shader pack {name}: {} programs ({}) in {} ms",
+                        programs.len(),
+                        programs.join(" "),
+                        started.elapsed().as_millis()
+                    );
+                }
+                Ok(None) => {}
+                Err(refused) => {
+                    for note in refused.notes {
+                        log::warn!("shader pack {name}: {note}");
+                    }
+                    self.shader_pack_failed(&name, dimension, &refused.reason);
+                }
+            }
+        }
         if picked.is_empty() {
             return PackInputs::default();
         }
@@ -309,25 +334,10 @@ impl Game<'_> {
                             table.len() / 3,
                             started_ids.elapsed().as_millis()
                         );
-                        let report = renderer
-                            .set_shader_pack(dimension, Some(post), &table)
-                            .map_err(|refused| {
-                                for note in refused.notes {
-                                    log::warn!("shader pack {name}: {note}");
-                                }
-                                refused.reason
-                            })?;
-                        if let Some((programs, notes)) = report {
-                            for note in notes {
-                                log::warn!("shader pack {name}: {note}");
-                            }
-                            log::info!(
-                                "shader pack {name}: folder `{folder}`, {} programs ({}) in {} ms",
-                                programs.len(),
-                                programs.join(" "),
-                                started.elapsed().as_millis()
-                            );
-                        }
+                        log::info!("shader pack {name}: folder `{folder}`, building its pipelines");
+                        // The driver compiles the programs on a thread of their own; the game
+                        // draws without a pack meanwhile, and the next frames pick it up.
+                        renderer.load_shader_pack(dimension, post, table, name.to_owned(), started);
                     }
                     Err(e) => {
                         self.pack_ids = None;
@@ -412,6 +422,7 @@ impl Game<'_> {
             ambient_light: dimension.map_or(0.0, |d| d.ambient_light),
             mood: self.ambience.moodiness,
             still_ticks: self.clock.still().then(|| self.visual_ticks()),
+            frame_timing: None,
         }
     }
 
@@ -796,7 +807,7 @@ mod block_id_tests {
 /// their sprite layer, not their block. A layer takes the id of the block named like its sprite
 /// (`block/oak_leaves` for `oak_leaves`, and still/flow sprites for their fluid), else the id
 /// most blocks drawing it share (ties: the lowest); -1 when no block drawing it has one.
-/// y is 1 for the fluid sprites, -1 otherwise.
+/// y is 1 for the fluid sprites, 0 otherwise (`fluid_pairs`).
 pub(super) fn block_id_table(pack: &super::PackResources, ids: &BlockIds) -> Vec<i32> {
     let layers = pack
         .render
@@ -804,13 +815,15 @@ pub(super) fn block_id_table(pack: &super::PackResources, ids: &BlockIds) -> Vec
         .values()
         .max()
         .map_or(0, |l| l + 1) as usize;
-    let mut table = vec![-1; layers * 2];
+    let sprite = |name: &str| pack.render.sprite_layers.get(name).copied();
+    let fluids = ["water_still", "water_flow", "lava_still", "lava_flow"]
+        .map(|f| sprite(&format!("minecraft:block/{f}")));
+    let mut table = fluid_pairs(layers, fluids.into_iter().flatten());
     if ids.is_empty() {
         return table;
     }
     let registry = pack.assets.registry;
     let catalog = &pack.render.model_catalog;
-    let sprite = |name: &str| pack.render.sprite_layers.get(name).copied();
     // (layer, id) -> (a block named like the sprite, the blocks).
     let mut votes = BlockIdVotes::default();
     for i in 0..registry.len() {
@@ -849,10 +862,17 @@ pub(super) fn block_id_table(pack: &super::PackResources, ids: &BlockIds) -> Vec
         }
     }
     votes.write(&mut table);
-    for f in ["water_still", "water_flow", "lava_still", "lava_flow"] {
-        if let Some(l) = sprite(&format!("minecraft:block/{f}"))
-            && let Some(slot) = table.get_mut(l as usize * 2 + 1)
-        {
+    table
+}
+
+/// `layers` (id, fluid) pairs before the ids are known: id -1, and `mc_Entity.y` 1 for the
+/// `fluids` layers, 0 for the others. Iris 1.11.7, with probe packs of ours (#10452), gave
+/// terrain y 1 on water and lava, and 0 on every other block, whether `block.properties`
+/// maps it or not.
+fn fluid_pairs(layers: usize, fluids: impl IntoIterator<Item = u32>) -> Vec<i32> {
+    let mut table: Vec<i32> = std::iter::repeat_n([-1, 0], layers).flatten().collect();
+    for l in fluids {
+        if let Some(slot) = table.get_mut(l as usize * 2 + 1) {
             *slot = 1;
         }
     }
@@ -948,6 +968,20 @@ fn terrain_table(ids: &[i32], emission: &[i32]) -> Vec<i32> {
         .enumerate()
         .flat_map(|(layer, pair)| [pair[0], pair[1], emission.get(layer).copied().unwrap_or(0)])
         .collect()
+}
+
+#[cfg(test)]
+mod fluid_pair_tests {
+    use super::fluid_pairs;
+
+    /// Iris 1.11.7's `mc_Entity.y` in terrain (probe packs of ours, #10452): 1 on water and
+    /// lava, 0 on every other block; the ids start at -1 (no id) until `block.properties` gives
+    /// them.
+    #[test]
+    fn terrain_reads_y_1_on_fluids_and_0_elsewhere() {
+        assert_eq!(fluid_pairs(4, [1, 3]), [-1, 0, -1, 1, -1, 0, -1, 1]);
+        assert_eq!(fluid_pairs(2, []), [-1, 0, -1, 0]);
+    }
 }
 
 #[cfg(test)]

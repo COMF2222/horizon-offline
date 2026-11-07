@@ -1451,13 +1451,15 @@ impl Launcher {
                     }
                 }
                 Msg::Exit(job, result) => {
+                    // A preparation (or a build) ended: the disk may have changed under the pages.
+                    backend::forget_prepared();
                     let error = result.err();
                     match job {
                         Job::Prepare => {
                             self.preparing = false;
                             // Play pressed before the version was prepared plays now.
                             if let Some(tag) = self.play_when_prepared.take() {
-                                if error.is_none() && backend::is_prepared(&tag) {
+                                if error.is_none() && backend::check_prepared(&tag) {
                                     self.starting_pack = None;
                                     self.start_client(tag);
                                 }
@@ -3929,7 +3931,7 @@ impl Launcher {
             }
             SelfUpdate::Downloading(..) | SelfUpdate::Stuck(_) => None,
             _ => Some(
-                // The glass look's About tile has the mockup's filled button.
+                // The glass look's Updates tile has the mockup's filled button.
                 button(
                     "check",
                     "Check now",
@@ -4009,6 +4011,14 @@ impl Launcher {
                     .child(accounts)
                     .child(offline)
                     .child(group("Updates", "reload"))
+                    .child(index_row(n + 1, "Horizon", Some(plain(&horizon)), horizon_action, &t))
+                    .child(index_row(
+                        n + 1,
+                        tr("Launcher"),
+                        Some(plain(&launcher)),
+                        launcher_action,
+                        &t,
+                    ))
                     .child(index_row(
                         n + 1,
                         tr("Install new versions automatically"),
@@ -4059,14 +4069,6 @@ impl Launcher {
                     .child(group("AI", "terminal"))
                     .child(self.no_ai_row(n + 6, cx))
                     .child(group("About", "info-box"))
-                    .child(index_row(n + 7, "Horizon", Some(plain(&horizon)), horizon_action, &t))
-                    .child(index_row(
-                        n + 8,
-                        tr("Launcher"),
-                        Some(plain(&launcher)),
-                        launcher_action,
-                        &t,
-                    ))
                     .child(self.location_row(n + 9, cx))
                     .child(index_row(
                         n + 10,
