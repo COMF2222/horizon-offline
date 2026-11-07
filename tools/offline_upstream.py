@@ -53,27 +53,41 @@ def released(items, pattern):
     return max(matches, key=lambda pair: pair[0])[1] if matches else None
 
 
+def tag_commit(tag):
+    target = api(f"repos/{UPSTREAM}/git/ref/tags/{tag}")["object"]
+    while target["type"] == "tag":
+        target = api(f"repos/{UPSTREAM}/git/tags/{target['sha']}")["object"]
+    if target["type"] != "commit" or not SHA.fullmatch(target["sha"]):
+        raise Refused(f"Upstream {tag} does not identify a source commit")
+    return target["sha"]
+
+
 def snapshot():
     launcher = released(api(f"repos/{UPSTREAM}/releases?per_page=100"), LAUNCHER)
     if launcher is None:
         raise Refused("Upstream has no stable launcher release")
     nightly = api(f"repos/{UPSTREAM}/releases/tags/nightly")
-    game = api(f"repos/{UPSTREAM}/git/ref/tags/nightly")["object"]
-    while game["type"] == "tag":
-        game = api(f"repos/{UPSTREAM}/git/tags/{game['sha']}")["object"]
-    if game["type"] != "commit" or not SHA.fullmatch(game["sha"]):
-        raise Refused("Upstream Nightly does not identify a source commit")
     upstream = git("ls-remote", f"https://github.com/{UPSTREAM}.git", "refs/heads/main").stdout.decode().split()
     if not upstream or not SHA.fullmatch(upstream[0]):
         raise Refused("Cannot resolve upstream main")
     return {"schema": 1, "repository": UPSTREAM, "launcher_tag": launcher["tag_name"],
-            "game_tag": "nightly", "game_commit": game["sha"],
+            "launcher_commit": tag_commit(launcher["tag_name"]),
+            "game_tag": "nightly", "game_commit": tag_commit("nightly"),
             "game_name": nightly.get("name", ""), "upstream_main": upstream[0],
             "observed_main": upstream[0]}
 
 
 def signal(state):
     return tuple((state or {}).get(key) for key in ("launcher_tag", "game_commit", "game_name"))
+
+
+def require_release_ancestry(source, state):
+    """Never record an official update that the compiled source does not actually contain."""
+    for key in ("launcher_commit", "game_commit"):
+        commit = state.get(key, "")
+        if not SHA.fullmatch(commit) or git(
+                "merge-base", "--is-ancestor", commit, source, check=False).returncode:
+            raise Refused(f"Source does not yet contain the released {key}; retry after upstream catches up")
 
 
 def next_tag(items):
@@ -176,6 +190,9 @@ def prepare(force=False):
     git("fetch", "--no-tags", "origin", "main")
     base = git("rev-parse", "FETCH_HEAD^{commit}").stdout.decode().strip()
     git("fetch", "--no-tags", f"https://github.com/{UPSTREAM}.git", state["upstream_main"])
+    git("fetch", "--no-tags", f"https://github.com/{UPSTREAM}.git",
+        state["launcher_commit"], state["game_commit"])
+    require_release_ancestry(state["upstream_main"], state)
     branch = f"offline-sync/{state['upstream_main'][:12]}-{base[:8]}"
     existing = git("ls-remote", "--exit-code", "origin", f"refs/heads/{branch}", check=False)
     if existing.returncode == 0 and not force:
@@ -217,6 +234,7 @@ def main():
                     "merge-base", "--is-ancestor", args.merged_source, "HEAD", check=False).returncode:
                 raise Refused("The recorded upstream source is not an ancestor of this checkout")
             state["upstream_main"] = args.merged_source
+            require_release_ancestry(args.merged_source, state)
         text = json.dumps(state, indent=2) + "\n"
         if args.out:
             args.out.parent.mkdir(parents=True, exist_ok=True)

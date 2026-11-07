@@ -95,6 +95,14 @@ class CandidateMerge(unittest.TestCase):
         self.assertEqual(Path("game.txt").read_text(), "our skin integration\n")
         self.assertEqual(self.run_git("status", "--porcelain"), "")
 
+    def test_recorded_releases_must_actually_be_in_the_compiled_source(self):
+        self.write("game.txt", "new official release\n")
+        released_commit = self.commit("official release")
+        state = dict(launcher_commit=self.common, game_commit=released_commit)
+        with self.assertRaisesRegex(sync.Refused, "released game_commit"):
+            sync.require_release_ancestry(self.common, state)
+        sync.require_release_ancestry(released_commit, state)
+
 
 class DispatchValidation(unittest.TestCase):
     def test_invalid_source_never_reaches_fetch(self):

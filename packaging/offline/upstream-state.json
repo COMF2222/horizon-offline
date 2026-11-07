@@ -2,6 +2,7 @@
   "schema": 1,
   "repository": "horizon-rust/horizon",
   "launcher_tag": "launcher@0.2.48",
+  "launcher_commit": "13be1a9e4f8887626f20b41128e22ae414ec5722",
   "game_tag": "nightly",
   "game_commit": "66f3981f522b24c250b21523a70080965b940424",
   "game_name": "Nightly 2026-11-05 \u00b7 66f3981",
