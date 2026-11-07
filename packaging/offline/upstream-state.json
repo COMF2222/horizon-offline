@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "repository": "horizon-rust/horizon",
-  "launcher_tag": "launcher@0.2.48",
-  "launcher_commit": "13be1a9e4f8887626f20b41128e22ae414ec5722",
+  "launcher_tag": "launcher@0.2.49",
+  "launcher_commit": "ebcfa2263aa3d8e399aa993b1e05daf42eb4cfa0",
   "game_tag": "nightly",
   "game_commit": "66f3981f522b24c250b21523a70080965b940424",
   "game_name": "Nightly 2026-11-05 \u00b7 66f3981",
-  "upstream_main": "13be1a9e4f8887626f20b41128e22ae414ec5722",
-  "observed_main": "00f6358e7a7d4f168450fe6d74cbe82100dcc080"
+  "upstream_main": "ebcfa2263aa3d8e399aa993b1e05daf42eb4cfa0",
+  "observed_main": "004a39be07ad06e33b93e6ebaaf156a2053b02f0"
 }
