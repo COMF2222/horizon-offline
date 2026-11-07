@@ -1,0 +1,135 @@
+# Copyright (c) 2026 d3grando
+# SPDX-License-Identifier: MIT
+[mod]
+id = "mousetricks"
+version = "0.2.0"
+priority = 100
+
+# Pinned: the four hooks marked "pinned" below target game functions that are
+# not native hook points (game/native_hooks.rs passes mouse buttons and the
+# wheel only while playing, never over an inventory screen), so the mod is
+# made for this one commit. Its other hooks use only hook points
+# (NATIVE_HOOKS_API 1). Each pinned target is free of macros and cfg, as
+# horizon-mixins requires of a HEAD target.
+[compatibility]
+horizon_revision = "142388e1c136e622652ec7505af15d8ad195e041"
+
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "mousetricks"
+source = "runtime.rs"
+
+[[module]]
+id = "native"
+file = "crates/horizon-client/src/game.rs"
+name = "mousetricks_native"
+source = "native.rs"
+
+# Pinned: a mouse press, before the game handles it. A left or right press
+# goes on (the drag it may start is noted); a middle click on an empty spot
+# sorts and is cancelled (answering "handled", as the game's own sort button
+# does). `sort_mouse_press` is the first call every mouse press over a screen
+# makes; `inventory_press` itself holds a `vec!` and can't be hooked.
+[[injection]]
+id = "press"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::tweaks::Game<'_>::sort_mouse_press"
+helper = "press.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "button", ty = "winit::event::MouseButton", value = "button" },
+]
+
+# Pinned: the cursor moving over an inventory screen; Mouse Tricks' drags take
+# the move (the game's quick craft drag then doesn't grow).
+[[injection]]
+id = "drag"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::Game<'_>::inventory_drag_move"
+helper = "drag.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+]
+
+# Pinned: the button's release over an inventory screen ends the drag.
+[[injection]]
+id = "release"
+kind = "HEAD"
+target = "horizon_client::game::Game<'_>::inventory_mouse_release"
+helper = "release.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+]
+
+# Pinned: the wheel over an inventory screen moves items one by one.
+[[injection]]
+id = "wheel"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::tweaks::Game<'_>::tweak_scroll"
+helper = "wheel.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "delta", ty = "f32", value = "delta" },
+  { name = "slot", ty = "Option<usize>", value = "slot" },
+]
+
+# Hook point: a drag whose release went to another screen ends; a paced sort
+# (on a server) makes its next clicks.
+[[injection]]
+id = "frame"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_frame"
+helper = "frame.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "elapsed", ty = "std::time::Duration", value = "elapsed" },
+]
+
+# Hook point: the sort key over an inventory screen (keys reach it on any
+# screen).
+[[injection]]
+id = "key"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_key"
+helper = "key.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "key", ty = "&str", value = "key" },
+  { name = "pressed", ty = "bool", value = "pressed" },
+]
+
+# Hook points: the row in Options > Mods and its settings page.
+[[injection]]
+id = "list"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_mods"
+helper = "list.rs"
+bindings = [
+  { name = "mods", ty = "&mut Vec<crate::game::native_hooks::NativeMod>", value = "&mut *mods" },
+]
+
+[[injection]]
+id = "settings"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_settings"
+helper = "settings.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "mod_id", ty = "&str", value = "mod_id" },
+  { name = "buttons", ty = "&mut Vec<String>", value = "&mut *buttons" },
+]
+
+[[injection]]
+id = "click"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_settings_click"
+helper = "click.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "mod_id", ty = "&str", value = "mod_id" },
+  { name = "button", ty = "usize", value = "button" },
+]

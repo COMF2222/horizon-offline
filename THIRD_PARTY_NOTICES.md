@@ -1,5 +1,15 @@
 # Third-party notices
 
+## Mouse Tricks and TreeFall
+
+`third_party/offline-native-mods/mousetricks` is Mouse Tricks 0.2.0 by d3grando,
+from [99fa1d49216877506b0e5124d42a785d5ace1e09](https://github.com/d3grando/mousetricks/tree/99fa1d49216877506b0e5124d42a785d5ace1e09).
+`third_party/offline-native-mods/treefall` is TreeFall 0.3.0 by d3grando,
+from [43fe0a419c55e9c76507cc03ea30ce107531f1c2](https://github.com/d3grando/treefall/tree/43fe0a419c55e9c76507cc03ea30ce107531f1c2).
+Both are Copyright (c) 2026 d3grando and licensed under MIT; each folder contains its
+original `LICENSE`. The optional Horizon Offline game profile compiles these mods
+with compatibility changes for the current game. Their original behavior tests are retained.
+
 ## wgpu-hal
 
 `third_party/wgpu-hal` is [wgpu-hal](https://github.com/gfx-rs/wgpu) 30.0.1 by the gfx-rs

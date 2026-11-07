@@ -1,0 +1,18 @@
+# Copyright (c) 2026 d3grando
+# SPDX-License-Identifier: MIT
+[package]
+name = "horizon-mousetricks"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+description = "Mouse Tricks: inventory mouse drags and wheel moves for Horizon, as a native mod"
+publish = false
+
+[lib]
+# This exact source is also injected as `crate::game::mousetricks` by horizon-mixins.
+path = "mixins/mousetricks/runtime.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

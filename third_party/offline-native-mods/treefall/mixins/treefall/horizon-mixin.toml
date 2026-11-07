@@ -1,0 +1,133 @@
+# Copyright (c) 2026 d3grando
+# SPDX-License-Identifier: MIT
+[mod]
+id = "treefall"
+version = "0.3.0"
+# Above Veinminer (100): same-site HEAD hooks run by priority, highest first, and
+# the first Break skips the rest, so a felled tree is never also vein-mined.
+priority = 200
+
+# Pinned: the four hooks marked "pinned" below target game functions that are
+# not native hook points (game/native_hooks.rs has none for mining, mining
+# speed, drops or LAN guests' commands), so the mod is made for this one commit.
+# Its other hooks use only hook points (NATIVE_HOOKS_API 1).
+[compatibility]
+horizon_revision = "142388e1c136e622652ec7505af15d8ad195e041"
+
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "treefall"
+source = "runtime.rs"
+
+[[module]]
+id = "native"
+file = "crates/horizon-client/src/game.rs"
+name = "treefall_native"
+source = "native.rs"
+
+# Pinned: felling replaces the break of a log.
+[[injection]]
+id = "mining"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::Game<'_>::break_block"
+helper = "mining.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "pos", ty = "[i32;3]", value = "pos" },
+]
+
+# Pinned: `breakSpeed: "scaled"` slows the cut of a log that fells a tree.
+[[injection]]
+id = "speed"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::hand::Game<'_>::destroy_progress"
+helper = "speed.rs"
+bindings = [
+  { name = "game", ty = "&crate::game::Game<'_>", value = "self" },
+  { name = "pos", ty = "[i32;3]", value = "pos" },
+]
+
+# Pinned: `dropsAtStump` moves the drops of a felled tree.
+[[injection]]
+id = "drops"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::Game<'_>::pop_resource"
+helper = "drops.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "pos", ty = "[i32;3]", value = "pos" },
+  { name = "stack", ty = "&mut horizon_client::items::ItemStack", value = "&mut stack" },
+]
+
+# Pinned: a LAN guest without command rights may still run `/treefall`
+# (native_command only sees commands that are allowed to run).
+[[injection]]
+id = "guest-command"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::lan_actions::Game<'_>::guest_command"
+helper = "guest-command.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "host", ty = "&mut crate::game::lan::LanHost", value = "&mut *host" },
+  { name = "conn", ty = "u32", value = "conn" },
+  { name = "command", ty = "&str", value = "command" },
+]
+
+# Hook point: `/treefall`.
+[[injection]]
+id = "command"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_command"
+helper = "command.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "command", ty = "&str", value = "command" },
+  { name = "ran", ty = "&mut bool", value = "&mut *ran" },
+]
+
+# Hook point: the window follows Options > Mods' on/off for its server thread.
+[[injection]]
+id = "tick"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_tick"
+helper = "tick.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+]
+
+# Hook points: the row in Options > Mods and its settings page.
+[[injection]]
+id = "list"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_mods"
+helper = "list.rs"
+bindings = [
+  { name = "mods", ty = "&mut Vec<crate::game::native_hooks::NativeMod>", value = "&mut *mods" },
+]
+
+[[injection]]
+id = "settings"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_settings"
+helper = "settings.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "mod_id", ty = "&str", value = "mod_id" },
+  { name = "buttons", ty = "&mut Vec<String>", value = "&mut *buttons" },
+]
+
+[[injection]]
+id = "click"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_settings_click"
+helper = "click.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "mod_id", ty = "&str", value = "mod_id" },
+  { name = "button", ty = "usize", value = "button" },
+]
