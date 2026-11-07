@@ -103,6 +103,7 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        id: native-cache
         with:
           workspaces: |
             .
@@ -110,6 +111,13 @@ jobs:
           shared-key: offline-windows-x64-v2
           cache-workspace-crates: true
           cache-on-failure: true
+      - name: Reuse dependencies from earlier launcher builds on a cold cache
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: launcher
+          shared-key: offline-windows-x64
+          save-if: 'false'
       - name: Stamp the verified upstream launcher base
         run: |
           git fetch --no-tags https://github.com/horizon-rust/horizon.git 'refs/tags/launcher@*:refs/tags/launcher@*'
