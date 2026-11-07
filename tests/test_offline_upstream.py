@@ -29,6 +29,14 @@ class ReleaseSelection(unittest.TestCase):
         self.assertEqual(sync.signal(before), sync.signal(after))
         self.assertNotEqual(sync.signal(before), sync.signal(dict(after, game_commit="d" * 40)))
 
+    def test_a_new_nightly_on_the_same_main_gets_its_own_candidate(self):
+        state = dict(launcher_tag="launcher@0.2.49", launcher_commit="a" * 40,
+                     game_commit="b" * 40, game_name="Nightly fixture", upstream_main="c" * 40)
+        base = "d" * 40
+        first = sync.candidate_branch(base, state)
+        self.assertEqual(first, sync.candidate_branch(base, dict(state)))
+        self.assertNotEqual(first, sync.candidate_branch(base, dict(state, game_commit="e" * 40)))
+
 
 class CandidateMerge(unittest.TestCase):
     def setUp(self):
@@ -102,6 +110,47 @@ class CandidateMerge(unittest.TestCase):
         with self.assertRaisesRegex(sync.Refused, "released game_commit"):
             sync.require_release_ancestry(self.common, state)
         sync.require_release_ancestry(released_commit, state)
+
+    def separate_releases(self, *, conflicting=False):
+        self.write("offline.txt", "our offline profile\n")
+        if conflicting:
+            self.write("game.txt", "our skin integration\n")
+        base = self.commit("fork")
+        self.run_git("checkout", "-b", "vendor-main", self.common)
+        self.write("launcher.txt", "latest launcher\n")
+        main = self.commit("launcher release")
+        self.run_git("checkout", "-b", "vendor-nightly", self.common)
+        self.write("game.txt", "released nightly game\n")
+        self.write(".github/workflows/vendor-private.yml", "upstream-only infrastructure\n")
+        nightly = self.commit("nightly with an independently picked PR")
+        self.run_git("checkout", "main")
+        state = dict(upstream_main=main, launcher_commit=main, game_commit=nightly,
+                     launcher_tag="launcher@0.2.49", game_name="Nightly fixture")
+        return base, main, nightly, state
+
+    def test_picked_nightly_and_launcher_are_both_present_without_enabling_vendor_workflows(self):
+        base, main, nightly, state = self.separate_releases()
+        candidate = sync.released_candidate(base, state)
+        for source in (base, main, nightly):
+            self.run_git("merge-base", "--is-ancestor", source, candidate)
+        self.assertEqual(self.run_git("show", f"{candidate}:launcher.txt"), "latest launcher")
+        self.assertEqual(self.run_git("show", f"{candidate}:game.txt"), "released nightly game")
+        self.assertEqual(self.run_git("show", f"{candidate}:offline.txt"), "our offline profile")
+        self.assertEqual(self.run_git("show", f"{candidate}:.github/workflows/offline-release.yml"),
+                         "our publisher")
+        self.assertNotIn(".github/workflows/vendor-private.yml",
+                         self.run_git("ls-tree", "-r", "--name-only", candidate).splitlines())
+        self.assertEqual(json.loads(self.run_git("show", f"{candidate}:{sync.STATE}")), state)
+        self.assertEqual(self.run_git("rev-parse", "HEAD"), base)
+        self.assertEqual(self.run_git("status", "--porcelain"), "")
+
+    def test_a_conflicting_picked_nightly_keeps_the_working_fork_unchanged(self):
+        base, _, _, state = self.separate_releases(conflicting=True)
+        with self.assertRaisesRegex(sync.Refused, "merge conflicts"):
+            sync.released_candidate(base, state)
+        self.assertEqual(self.run_git("rev-parse", "HEAD"), base)
+        self.assertEqual(Path("game.txt").read_text(), "our skin integration\n")
+        self.assertEqual(self.run_git("status", "--porcelain"), "")
 
     def locale_branches(self, original, ours, theirs):
         path = "launcher/lang/ru.json"
