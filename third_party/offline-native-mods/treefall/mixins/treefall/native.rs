@@ -170,7 +170,7 @@ impl View<'_, '_> {
                 && !game.spectator(),
             // Sneak is the left shift key; a LAN guest's sneak flag is mapped
             // onto it for their turn (`enter_guest`).
-            sneaking: game.keys.contains(&winit::keyboard::KeyCode::ShiftLeft)
+            sneaking: game.keys.held(horizon_client::actions::Action::Sneak)
                 || game.player.as_ref().is_some_and(|p| p.shift_key_down),
         }
     }

@@ -643,6 +643,8 @@ mod controller_tests {
                 uuid,
                 name: format!("Rider{conn}"),
                 properties: Vec::new(),
+                offline_skin: None,
+                supports_offline_skin: false,
                 info: ClientInformation::new(2),
                 brand: "test".into(),
                 sender: PlayerSender::new(tx, Arc::default()),

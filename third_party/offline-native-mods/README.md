@@ -15,3 +15,8 @@ These sources are compiled into the optional game profile. They are not Java mod
 The release stager binds their manifests to the exact Horizon Offline source commit.
 TreeFall's adapter uses the current mutable mining-speed API and the loaded world's
 actual height range, including its exclusive upper bound.
+It reads the mapped Sneak action, so its bypass follows keyboard and controller bindings.
+
+The mixin tool serializes Rust syntax without upstream comments. Before compiling the optional
+game, the stager applies Clippy's machine-applicable fixes to that generated copy and then
+runs strict Clippy again. The original checkout is restored byte-for-byte after the build.

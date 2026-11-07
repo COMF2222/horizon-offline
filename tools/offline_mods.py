@@ -88,7 +88,9 @@ def build(args):
 
     # Reuse the vanilla build's crate paths and dependencies. Only transformed source is written;
     # a finally block restores exact original bytes, including after a compiler failure.
-    originals = {}
+    crate = source / "crates/horizon-client"
+    originals = {path: path.read_bytes() for path in crate.rglob("*.rs")}
+    changed = False
     try:
         for path in (transformed / "crates/horizon-client").rglob("*"):
             if not path.is_file():
@@ -101,13 +103,19 @@ def build(args):
                 continue
             if data != original:
                 originals[target] = original
+                changed = True
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
-        if not originals:
+        if not changed:
             raise ValueError("The mod transformation produced no changed game code")
-        run([cargo, "build", "--profile", "fast", "--locked", "-p", "horizon-client", "--bin", "horizon-client"], cwd=source)
         if not args.skip_lints:
+            # Syn serialization drops upstream comments that exempt intentional nested `if`s
+            # from style suggestions. Fix the generated copy, without weakening lint checks.
+            run([cargo, "clippy", "--fix", "--allow-dirty", "--allow-staged", "--allow-no-vcs",
+                 "--profile", "fast", "--locked", "-p", "horizon-client", "--lib", "--bins",
+                 "--", "-D", "warnings"], cwd=source)
             run([cargo, "clippy", "--profile", "fast", "--locked", "-p", "horizon-client", "--lib", "--bins", "--", "-D", "warnings"], cwd=source)
+        run([cargo, "build", "--profile", "fast", "--locked", "-p", "horizon-client", "--bin", "horizon-client"], cwd=source)
         output = args.output.resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         binary = source / "target/fast" / ("horizon-client.exe" if os.name == "nt" else "horizon-client")
@@ -122,8 +130,10 @@ def build(args):
         for path, original in originals.items():
             if original is None:
                 path.unlink(missing_ok=True)
-            else:
+            elif not path.is_file() or path.read_bytes() != original:
                 path.write_bytes(original)
+        if subprocess.run(["git", "-C", str(source), "diff", "--quiet", "HEAD", "--"], check=False).returncode:
+            raise RuntimeError("The optional mod build did not restore the original checkout")
 
 
 def main():
