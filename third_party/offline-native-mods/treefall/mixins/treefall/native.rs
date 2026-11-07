@@ -109,7 +109,10 @@ struct View<'g, 'r>(&'g Game<'r>);
 impl Blocks for View<'_, '_> {
     fn block(&self, p: Position) -> Option<Block> {
         let game = self.0;
-        if p[1] < game.dim.min_y() || p[1] > game.dim.max_y() || !game.world.loaded(p[0], p[2]) {
+        if p[1] < game.world.shape.min_y
+            || p[1] >= game.world.shape.max_y()
+            || !game.world.loaded(p[0], p[2])
+        {
             return None;
         }
         let state = game.world.block(p[0], p[1], p[2]);
@@ -344,7 +347,7 @@ impl Game<'_> {
     /// log's progress per tick divided by the tree's slowdown; None leaves the
     /// game's own value. Asked by the game that owns the world and, in single
     /// player, by the window as it mines too, so both cut as slowly.
-    pub(super) fn treefall_destroy_progress(&self, pos: Position) -> Option<f32> {
+    pub(super) fn treefall_destroy_progress(&mut self, pos: Position) -> Option<f32> {
         if MEASURING.get() || !on(self) {
             return None;
         }

@@ -1231,5 +1231,6 @@
   "Doesn't build on the Horizon you play ({code}): a build leaves it out until its author updates it": "Non si compila sull'Horizon a cui giochi ({code}): una compilazione lo esclude finché il suo autore non lo aggiorna",
   "Where you are, the founder set is claimed through a free checkout on playhorizon.dev. Claim it from the Shop: it opens the checkout for you.": "Dove ti trovi, il set dei fondatori si riscatta con un pagamento gratuito su playhorizon.dev. Riscattalo dal Negozio: apre il pagamento per te.",
   "The founder set can't be claimed from your country.": "Il set dei fondatori non può essere riscattato dal tuo paese.",
-  "Offline {version}": "Offline {version}"
+  "Offline {version}": "Offline {version}",
+  "Offline {version} · Mods": "Offline {version} · Mods"
 }

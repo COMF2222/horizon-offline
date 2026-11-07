@@ -19,6 +19,9 @@ pub const VERSION: &str = match option_env!("HORIZON_OFFLINE_VERSION") {
     None => "dev",
 };
 const MARKER: &str = ".offline-runtime.sha256";
+const VERSION_MARKER: &str = ".offline-runtime.version";
+const MODS_SUFFIX: &str = "-mods";
+const MODS_PROGRAM: &str = "optional-mods/horizon-client.exe";
 const MAX_FILE: u64 = 512 * 1024 * 1024;
 const MAX_TOTAL: u64 = 1024 * 1024 * 1024;
 const REQUIRED: &[&str] = &[
@@ -41,9 +44,27 @@ pub fn is_bundled(tag: &str) -> bool {
     tag.starts_with(PREFIX)
 }
 
+pub fn has_mods(tag: &str) -> bool {
+    is_bundled(tag) && tag.ends_with(MODS_SUFFIX)
+}
+
+fn payload_group(tag: &str) -> &str {
+    tag.strip_suffix(MODS_SUFFIX).unwrap_or(tag)
+}
+
 /// The display label for our immutable version, without its internal content hash.
 pub fn label(tag: &str) -> Option<String> {
-    is_bundled(tag).then(|| i18n::trf("Offline {version}", &[("version", VERSION)]))
+    is_bundled(tag).then(|| {
+        let version = fs::read_to_string(backend::version_dir(tag).join(VERSION_MARKER))
+            .ok()
+            .filter(|version| !version.trim().is_empty())
+            .unwrap_or_else(|| VERSION.to_string());
+        if has_mods(tag) {
+            i18n::trf("Offline {version} · Mods", &[("version", version.trim())])
+        } else {
+            i18n::trf("Offline {version}", &[("version", version.trim())])
+        }
+    })
 }
 
 /// Install before the CLI, MCP server, or window resolves a game version. A new executable carries
@@ -63,20 +84,42 @@ pub fn ensure_installed() -> Result<Option<String>, String> {
         if !installed_before {
             backend::reuse_prepared_for(&tag);
         }
+        let mod_tag = format!("{tag}{MODS_SUFFIX}");
+        let mods_before = complete(&backend::version_dir(&mod_tag), embedded::SHA256);
+        let mods = contains_mods(embedded::ARCHIVE)
+            .then(|| {
+                install_variant_at(
+                    &backend::version_dir(""),
+                    embedded::ARCHIVE,
+                    embedded::SHA256,
+                    true,
+                )
+            })
+            .transpose()?;
+        if !mods_before {
+            if let Some(mods) = &mods {
+                backend::reuse_prepared_for(mods);
+            }
+        }
         let mut settings = backend::Settings::load();
+        let preferred = if settings.selected.as_deref().is_some_and(has_mods) {
+            mods.as_ref().unwrap_or(&tag)
+        } else {
+            &tag
+        };
         if settings.selected.as_deref().is_none_or(|selected| {
             is_bundled(selected)
                 || (!crate::native_mods::is_native(selected)
                     && !crate::build_import::is_imported(selected))
-        }) && settings.selected.as_deref() != Some(&tag)
+        }) && settings.selected.as_deref() != Some(preferred)
         {
-            settings.selected = Some(tag.clone());
+            settings.selected = Some(preferred.clone());
             settings.save()?;
         }
-        if !installed_before {
+        if !installed_before || (mods.is_some() && !mods_before) {
             prune_old_payloads(&tag, &settings);
         }
-        Ok(Some(tag))
+        Ok(Some(preferred.clone()))
     })();
     result.map_err(|error: String| {
         i18n::trf(
@@ -93,6 +136,7 @@ fn digest(bytes: &[u8]) -> String {
 fn complete(dir: &Path, sha256: &str) -> bool {
     fs::read_to_string(dir.join(MARKER)).is_ok_and(|saved| saved == sha256)
         && dir.join(".installed").is_file()
+        && dir.join(VERSION_MARKER).is_file()
         && REQUIRED.iter().all(|name| dir.join(name).is_file())
 }
 
@@ -116,7 +160,7 @@ fn prune_old_payloads(current: &str, settings: &backend::Settings) {
         let Ok(hash) = fs::read_to_string(entry.path().join(MARKER)) else {
             continue;
         };
-        if version_tag(&hash).ok().as_deref() != Some(tag.as_str()) {
+        if version_tag(&hash).ok().as_deref() != Some(payload_group(&tag)) {
             continue;
         }
         if let Ok(time) =
@@ -148,22 +192,51 @@ fn stale_payloads(
     protected: &[String],
 ) -> Vec<String> {
     installed.sort_by(|(left, left_time), (right, right_time)| {
-        (right == current)
-            .cmp(&(left == current))
+        (payload_group(right) == payload_group(current))
+            .cmp(&(payload_group(left) == payload_group(current)))
             .then_with(|| right_time.cmp(left_time))
             .then_with(|| left.cmp(right))
     });
+    let mut groups = Vec::new();
+    for (tag, _) in &installed {
+        let group = payload_group(tag);
+        if !groups.contains(&group) && groups.len() < keep.max(1) {
+            groups.push(group);
+        }
+    }
+    let kept: Vec<String> = groups.into_iter().map(str::to_owned).collect();
     installed
         .into_iter()
-        .skip(keep.max(1))
         .map(|(tag, _)| tag)
-        .filter(|tag| tag != current && !protected.contains(tag))
+        .filter(|tag| {
+            !kept.iter().any(|group| group == payload_group(tag)) && !protected.contains(tag)
+        })
         .collect()
 }
 
 fn install_at(versions: &Path, archive: &[u8], sha256: &str) -> Result<String, String> {
+    install_variant_at(versions, archive, sha256, false)
+}
+
+fn contains_mods(archive: &[u8]) -> bool {
+    let Ok(mut zip) = zip::ZipArchive::new(Cursor::new(archive)) else {
+        return false;
+    };
+    let entry = zip.by_name(MODS_PROGRAM);
+    entry.is_ok_and(|entry| !entry.is_dir())
+}
+
+fn install_variant_at(
+    versions: &Path,
+    archive: &[u8],
+    sha256: &str,
+    mods: bool,
+) -> Result<String, String> {
     // Both the tag and staging folder are generated here, never from ZIP names or user input.
-    let tag = version_tag(sha256)?;
+    let mut tag = version_tag(sha256)?;
+    if mods {
+        tag.push_str(MODS_SUFFIX);
+    }
     let target = versions.join(&tag);
     if complete(&target, sha256) {
         return Ok(tag);
@@ -175,26 +248,31 @@ fn install_at(versions: &Path, archive: &[u8], sha256: &str) -> Result<String, S
     let stage = versions.join(format!(".{tag}-{}-partial", std::process::id()));
     fs::create_dir_all(&stage).map_err(|error| io_error(&stage, error))?;
     let result = (|| {
-        unpack(archive, &stage)?;
+        unpack(archive, &stage, mods)?;
         if !REQUIRED.iter().all(|name| stage.join(name).is_file()) {
             return Err("The embedded runtime is incomplete".into());
         }
+        fs::write(stage.join(MARKER), sha256).map_err(|error| io_error(&stage, error))?;
+        fs::write(stage.join(VERSION_MARKER), VERSION).map_err(|error| io_error(&stage, error))?;
+        fs::write(stage.join(".installed"), "").map_err(|error| io_error(&stage, error))?;
         // Preserve privately prepared resources when repairing an interrupted installation.
         // No player worlds or settings live in a version folder.
         if target.exists() {
             let _ = fs::remove_file(target.join(".installed"));
             for entry in fs::read_dir(&stage).map_err(|error| io_error(&stage, error))? {
                 let entry = entry.map_err(|error| io_error(&stage, error))?;
+                if entry.file_name() == ".installed" {
+                    continue;
+                }
                 copy_tree(&entry.path(), &target.join(entry.file_name()))?;
             }
+            fs::write(target.join(".installed"), "").map_err(|error| io_error(&target, error))?;
         } else if let Err(error) = fs::rename(&stage, &target) {
             // Another launcher may have published this same immutable payload first.
             if !complete(&target, sha256) {
                 return Err(io_error(&target, error));
             }
         }
-        fs::write(target.join(MARKER), sha256).map_err(|error| io_error(&target, error))?;
-        fs::write(target.join(".installed"), "").map_err(|error| io_error(&target, error))?;
         Ok(tag.clone())
     })();
     // `stage` is a direct child made from a constant prefix, a digest, and our process id.
@@ -211,13 +289,13 @@ fn version_tag(sha256: &str) -> Result<String, String> {
     Ok(format!("{PREFIX}{}", &sha256[..16]))
 }
 
-fn unpack(bytes: &[u8], stage: &Path) -> Result<(), String> {
+fn unpack(bytes: &[u8], stage: &Path, mods: bool) -> Result<(), String> {
     let mut archive =
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|error| error.to_string())?;
     let mut total = 0u64;
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(|error| error.to_string())?;
-        let relative = entry
+        let mut relative = entry
             .enclosed_name()
             .ok_or_else(|| "Invalid embedded runtime path".to_string())?;
         if relative
@@ -240,6 +318,15 @@ fn unpack(bytes: &[u8], stage: &Path) -> Result<(), String> {
             .ok_or("Embedded runtime is too large")?;
         if entry.size() > MAX_FILE || total > MAX_TOTAL {
             return Err("Embedded runtime is too large".into());
+        }
+        if relative.starts_with("optional-mods") {
+            if mods && relative == Path::new(MODS_PROGRAM) {
+                relative = Path::new("horizon-client.exe").to_path_buf();
+            } else {
+                continue;
+            }
+        } else if mods && relative == Path::new("horizon-client.exe") {
+            continue;
         }
         let path = stage.join(&relative);
         if entry.is_dir() {
@@ -321,6 +408,63 @@ mod tests {
     }
 
     #[test]
+    fn optional_mods_install_as_a_separate_game_and_repair_without_losing_resources() {
+        let root = folder();
+        let archive = payload(Some(MODS_PROGRAM));
+        assert!(contains_mods(&archive));
+        assert!(!contains_mods(&payload(None)));
+        let hash = digest(&archive);
+        let vanilla = install_at(&root, &archive, &hash).unwrap();
+        let modded = install_variant_at(&root, &archive, &hash, true).unwrap();
+        assert_ne!(vanilla, modded);
+        assert!(!root.join(&vanilla).join(MODS_PROGRAM).exists());
+        for tag in [&vanilla, &modded] {
+            assert!(complete(&root.join(tag), &hash));
+            assert_eq!(
+                fs::read_to_string(root.join(tag).join(VERSION_MARKER)).unwrap(),
+                VERSION
+            );
+        }
+        let prepared = root.join(&modded).join(".local/private-resources");
+        fs::create_dir_all(prepared.parent().unwrap()).unwrap();
+        fs::write(&prepared, b"keep prepared resources").unwrap();
+        fs::remove_file(root.join(&modded).join("horizon-client.exe")).unwrap();
+        install_variant_at(&root, &archive, &hash, true).unwrap();
+        assert_eq!(fs::read(prepared).unwrap(), b"keep prepared resources");
+        assert!(root.join(vanilla).join("horizon-client.exe").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_optional_game_uses_only_its_own_executable_regardless_of_zip_order() {
+        let root = folder();
+        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        // The modded program comes first: a later vanilla entry must not overwrite it.
+        for (name, contents) in std::iter::once((MODS_PROGRAM, b"modded game".as_slice())).chain(
+            REQUIRED
+                .iter()
+                .map(|name| (*name, b"vanilla game".as_slice())),
+        ) {
+            zip.start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(contents).unwrap();
+        }
+        let archive = zip.finish().unwrap().into_inner();
+        let hash = digest(&archive);
+        let vanilla = install_at(&root, &archive, &hash).unwrap();
+        let modded = install_variant_at(&root, &archive, &hash, true).unwrap();
+        assert_eq!(
+            fs::read(root.join(vanilla).join("horizon-client.exe")).unwrap(),
+            b"vanilla game"
+        );
+        assert_eq!(
+            fs::read(root.join(modded).join("horizon-client.exe")).unwrap(),
+            b"modded game"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn rejects_corrupt_or_escaping_payload_without_publishing_a_version() {
         let root = folder();
         let archive = payload(None);
@@ -358,5 +502,29 @@ mod tests {
             stale_payloads("current", installed, 2, &["pinned".into()]),
             ["old"]
         );
+    }
+
+    #[test]
+    fn cleanup_retains_both_variants_of_each_kept_release() {
+        let installed = [
+            "current",
+            "current-mods",
+            "previous",
+            "previous-mods",
+            "old",
+            "old-mods",
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, tag)| {
+            (
+                tag.into(),
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs((10 - i) as u64),
+            )
+        })
+        .collect();
+        let mut stale = stale_payloads("current-mods", installed, 2, &[]);
+        stale.sort();
+        assert_eq!(stale, ["old", "old-mods"]);
     }
 }

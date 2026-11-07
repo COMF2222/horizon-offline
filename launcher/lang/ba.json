@@ -1231,5 +1231,6 @@
   "Doesn't build on the Horizon you play ({code}): a build leaves it out until its author updates it": "Һин уйнаған Horizon-да йыйылмай ({code}): авторы яңыртмайынса, йыйыу уны төшөрөп ҡалдыра",
   "Where you are, the founder set is claimed through a free checkout on playhorizon.dev. Claim it from the Shop: it opens the checkout for you.": "Һеҙ булған ерҙә нигеҙләүселәр йыйылмаһы playhorizon.dev сайтында бушлай түләү аша алына. Уны Магазиндан алығыҙ: ул түләү битен үҙе аса.",
   "The founder set can't be claimed from your country.": "Нигеҙләүселәр йыйылмаһын һеҙҙең илдән алып булмай.",
-  "Offline {version}": "Offline {version}"
+  "Offline {version}": "Offline {version}",
+  "Offline {version} · Mods": "Offline {version} · Mods"
 }

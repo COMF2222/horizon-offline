@@ -909,6 +909,8 @@ impl<S: Clone> Sorting<S> {
             credit: paced.then_some(SORT_CLICKS_PER_TICK),
         }
     }
+    // Standalone callers can inspect this; the game's adapter uses `run`'s return value.
+    #[allow(dead_code)]
     pub fn done(&self) -> bool {
         self.steps.is_empty()
     }

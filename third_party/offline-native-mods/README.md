@@ -12,3 +12,6 @@ identify the copied Rust and TOML files. Compatibility changes for Horizon Offli
 kept here with the sources, so the Windows build does not depend on moving mod branches.
 
 These sources are compiled into the optional game profile. They are not Java mods.
+The release stager binds their manifests to the exact Horizon Offline source commit.
+TreeFall's adapter uses the current mutable mining-speed API and the loaded world's
+actual height range, including its exclusive upper bound.

@@ -1108,6 +1108,7 @@ fn installed_in(versions: &Path) -> Vec<String> {
         .flatten()
         .flatten()
         .filter(|e| e.path().join(COMPLETE).exists())
+        .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
         .filter_map(|e| e.file_name().into_string().ok())
         .collect();
     tags.sort_by(|a, b| compare_versions(b, a));
@@ -4682,6 +4683,19 @@ mod tests {
                 .try_into()
                 .ok()?,
         ))
+    }
+
+    #[test]
+    fn interrupted_staging_folders_never_become_installed_versions() {
+        let versions =
+            std::env::temp_dir().join(format!("horizon-install-stages-{}", std::process::id()));
+        for tag in ["v0.2.0", ".offline-bundled-fixture-partial"] {
+            let dir = versions.join(tag);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join(COMPLETE), "").unwrap();
+        }
+        assert_eq!(installed_in(&versions), ["v0.2.0"]);
+        fs::remove_dir_all(versions).unwrap();
     }
 
     #[test]

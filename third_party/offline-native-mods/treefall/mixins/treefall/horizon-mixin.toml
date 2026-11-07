@@ -46,7 +46,7 @@ cancellable = true
 target = "horizon_client::game::hand::Game<'_>::destroy_progress"
 helper = "speed.rs"
 bindings = [
-  { name = "game", ty = "&crate::game::Game<'_>", value = "self" },
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
   { name = "pos", ty = "[i32;3]", value = "pos" },
 ]
 

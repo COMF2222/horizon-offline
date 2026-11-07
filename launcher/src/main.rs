@@ -3272,13 +3272,16 @@ impl Launcher {
                     this.menu_closed_at = Some(event.position);
                     cx.notify();
                 }));
-            // Picking a version keeps the selected instance on it; the launcher's own version
-            // (newest unless chosen otherwise on Versions) follows updates.
+            // Bundled profiles follow updates in the chosen variant. Other versions pin only
+            // the selected instance, as in the upstream launcher.
             let follows = self.launcher_version().cloned();
             for tag in &self.installed {
                 let selected = self.selected() == Some(tag);
                 let tag = tag.clone();
                 let latest = follows.as_ref() == Some(&tag);
+                let managed = horizon_launcher::offline_runtime::is_bundled(&tag);
+                let label =
+                    horizon_launcher::offline_runtime::label(&tag).unwrap_or_else(|| tag.clone());
                 menu = menu.child(
                     div()
                         .id(SharedString::from(format!("pick-{tag}")))
@@ -3294,14 +3297,14 @@ impl Launcher {
                         .text_color(t.ink)
                         .cursor_pointer()
                         .hover(move |s| s.bg(t.plate_soft))
-                        .child(div().min_w_0().truncate().child(tag.clone()))
+                        .child(div().min_w_0().truncate().child(label))
                         .child(
                             div()
                                 .flex()
                                 .flex_none()
                                 .items_center()
                                 .gap(px(8.))
-                                .when(latest, |d| {
+                                .when(latest || managed, |d| {
                                     d.child(caps(tr("auto-update")).flex_none().text_color(t.muted))
                                 })
                                 .when(selected, |d| {
@@ -3309,7 +3312,13 @@ impl Launcher {
                                 }),
                         )
                         .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                            this.pin_version((!latest).then(|| tag.clone()));
+                            if managed {
+                                this.settings.selected = Some(tag.clone());
+                                this.save_settings();
+                                this.pin_version(None);
+                            } else {
+                                this.pin_version((!latest).then(|| tag.clone()));
+                            }
                             this.picker_open = false;
                             cx.notify();
                         })),

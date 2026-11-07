@@ -1231,5 +1231,6 @@
   "Doesn't build on the Horizon you play ({code}): a build leaves it out until its author updates it": "Չի կառուցվում քո խաղացած Horizon-ի վրա ({code}). կառուցումը բաց է թողնում այն, մինչև հեղինակը թարմացնի",
   "Where you are, the founder set is claimed through a free checkout on playhorizon.dev. Claim it from the Shop: it opens the checkout for you.": "Այնտեղ, որտեղ դուք եք, հիմնադիրների հավաքածուն ստացվում է playhorizon.dev-ում անվճար վճարման միջոցով։ Ստացեք այն Խանութից․ այն կբացի վճարումը ձեզ համար։",
   "The founder set can't be claimed from your country.": "Հիմնադիրների հավաքածուն հնարավոր չէ ստանալ ձեր երկրից։",
-  "Offline {version}": "Offline {version}"
+  "Offline {version}": "Offline {version}",
+  "Offline {version} · Mods": "Offline {version} · Mods"
 }

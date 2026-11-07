@@ -89,6 +89,13 @@ class Peer:
             settings = json.loads((self.root / 'launcher/settings.json').read_text(encoding='utf-8'))
             selected = settings.get('selected')
             assert selected, 'the supplied launcher must embed and select its own runtime'
+            if args.mods:
+                settings['selected'] = selected + '-mods'
+                (self.root / 'launcher/settings.json').write_text(json.dumps(settings), encoding='utf-8')
+                self.run_launcher('account', 'offline', name)
+                settings = json.loads((self.root / 'launcher/settings.json').read_text(encoding='utf-8'))
+                selected = settings['selected']
+                assert selected.endswith('-mods'), 'startup must preserve the optional mod profile'
             self.runtime = self.root / 'launcher/versions' / selected
             lock = json.loads((self.runtime / 'research-lock.json').read_text(encoding='utf-8'))
             self.resources = self.runtime / '.local/horizon-client' / lock['minecraft']['version']
@@ -195,9 +202,12 @@ def main():
     parser.add_argument('--resources', type=lambda value: Path(value).resolve())
     parser.add_argument('--out', type=lambda value: Path(value).resolve(), default=Path(tempfile.gettempdir()))
     parser.add_argument('--headless', action='store_true', help='no GPU; verify decoded peer skins, without screenshots')
+    parser.add_argument('--mods', action='store_true', help='use the embedded Mouse Tricks and TreeFall profile')
     args = parser.parse_args()
     if args.bin_dir and not args.resources:
         parser.error('--bin-dir requires matching --resources')
+    if args.mods and not args.launcher:
+        parser.error('--mods requires --launcher')
     args.out.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix='offline-skins-', dir=args.out))
     print(f'Scratch output: {root}', flush=True)

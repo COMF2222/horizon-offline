@@ -69,6 +69,8 @@ jobs:
           ref: ${{ needs.resolve.outputs.source_sha }}
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: offline-protocol
@@ -77,6 +79,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p test_offline_upstream.py
           cargo test --locked -p horizon-protocol --lib
+          python3 tools/offline_mods.py test
 
   windows:
     needs: resolve
@@ -155,16 +158,15 @@ jobs:
           python tools/check_imports.py target/fast/horizon-client.exe target/fast/horizon-ctl.exe target/fast/horizon-prepare.exe target/fast/horizon-server.exe
       - name: Test skin transport and rendering state
         run: |
-          cargo test --profile fast --locked -p horizon-client-lib --lib skin
+          cargo test --profile fast --locked --config profile.fast.package.horizon-client-lib.opt-level=0 -p horizon-client-lib --lib skin
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --profile fast --locked -p horizon-client --lib --bins skin
+          cargo test --profile fast --locked --config profile.fast.package.horizon-client.opt-level=0 -p horizon-client --lib skin
       - name: Check game and protocol lints
         run: cargo clippy --profile fast --locked -p horizon-protocol -p horizon-client-lib -p horizon-client --lib --bins -- -D warnings
       - name: Stage only our runtime and matching preparer sources
         run: |
           $stage = Join-Path $env:RUNNER_TEMP 'offline-runtime'
           $sources = Join-Path $env:RUNNER_TEMP 'offline-runtime-sources.zip'
-          $archive = Join-Path $env:RUNNER_TEMP 'offline-runtime.zip'
           New-Item -ItemType Directory -Path $stage | Out-Null
           # Original exporter source only. No game JARs, compiled Mojang classes or .local/.
           git archive --format=zip --output "$sources" HEAD tools mods/horizon/src/test/java crates/horizon-prepare research-lock.json LICENSE
@@ -174,6 +176,18 @@ jobs:
             Copy-Item -LiteralPath "target/fast/$program.exe" -Destination $stage
           }
           Copy-Item -LiteralPath packaging/PLAY.txt -Destination $stage
+          "HORIZON_OFFLINE_RUNTIME_STAGE=$stage" >> $env:GITHUB_ENV
+      - name: Build and lint the compatible Mouse Tricks and TreeFall profile
+        run: |
+          python tools/offline_mods.py build --work "$env:RUNNER_TEMP/offline-mod-build" --output "$env:HORIZON_OFFLINE_RUNTIME_STAGE/optional-mods/horizon-client.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/check_pe_arch.py x64 "$env:HORIZON_OFFLINE_RUNTIME_STAGE/optional-mods/horizon-client.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/check_imports.py "$env:HORIZON_OFFLINE_RUNTIME_STAGE/optional-mods/horizon-client.exe"
+      - name: Embed the two games and their licenses
+        run: |
+          $stage = $env:HORIZON_OFFLINE_RUNTIME_STAGE
+          $archive = Join-Path $env:RUNNER_TEMP 'offline-runtime.zip'
           Compress-Archive -Path "$stage/*" -DestinationPath $archive -CompressionLevel Optimal
           "HORIZON_OFFLINE_RUNTIME_ARCHIVE=$archive" >> $env:GITHUB_ENV
       - name: Build standalone launcher
@@ -193,10 +207,32 @@ jobs:
           foreach ($name in @('horizon-client.exe', 'horizon-prepare.exe', 'research-lock.json', '.installed', '.offline-runtime.sha256')) {
             if (-not (Test-Path -LiteralPath (Join-Path $runtime $name))) { throw "Missing bundled runtime file: $name" }
           }
+          $modTag = "$($settings.selected)-mods"
+          $modRuntime = Join-Path $env:HORIZON_LAUNCHER_HOME "versions/$modTag"
+          foreach ($name in @('horizon-client.exe', '.installed', 'LICENSES-native-mods.txt')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $modRuntime $name))) { throw "Missing optional mod profile file: $name" }
+          }
+          if ((Get-FileHash "$runtime/horizon-client.exe").Hash -eq (Get-FileHash "$modRuntime/horizon-client.exe").Hash) { throw 'Both profiles contain the same game.' }
+          # Simulate an older mod profile selected before an executable update.
+          $settings.selected = 'offline-bundled-0000000000000000-mods'
+          $settings | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath "$env:HORIZON_LAUNCHER_HOME/settings.json" -Encoding utf8
+          & $program account offline BundleSmoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $updated = Get-Content -LiteralPath "$env:HORIZON_LAUNCHER_HOME/settings.json" -Raw | ConvertFrom-Json
+          if ($updated.selected -ne $modTag) { throw 'Updating the executable lost the selected mod profile.' }
       - name: Verify three real clients share skins without Microsoft
         run: |
           $program = (Resolve-Path launcher/target/release/horizon-launcher.exe).Path
           python tools/offline_skin_e2e.py --launcher "$program" --out "$env:RUNNER_TEMP/offline-skin-e2e" --headless
+      - name: Verify modded clients also share local skins
+        run: |
+          $program = (Resolve-Path launcher/target/release/horizon-launcher.exe).Path
+          $hostRoot = Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/offline-skin-e2e" -Directory | Select-Object -First 1
+          $selected = (Get-Content -LiteralPath "$($hostRoot.FullName)/host/launcher/settings.json" -Raw | ConvertFrom-Json).selected
+          $resources = "$($hostRoot.FullName)/host/launcher/versions/$selected/.local/horizon-client/26.3"
+          python tools/offline_skin_e2e.py --launcher "$program" --mods --resources "$resources" --out "$env:RUNNER_TEMP/offline-skin-mods-e2e" --headless
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/offline_mods_e2e.py --launcher "$program" --resources "$resources" --out "$env:RUNNER_TEMP/offline-mod-behavior" --headless
       - name: Package standalone executable and authenticated updater archive
         run: |
           New-Item -ItemType Directory -Path dist -Force | Out-Null
