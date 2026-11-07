@@ -157,7 +157,7 @@ jobs:
         run: |
           cargo test --profile fast --locked -p horizon-client-lib --lib skin
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --profile fast --locked -p horizon-client --bin horizon-client skin
+          cargo test --profile fast --locked -p horizon-client --lib --bins skin
       - name: Check game and protocol lints
         run: cargo clippy --profile fast --locked -p horizon-protocol -p horizon-client-lib -p horizon-client --lib --bins -- -D warnings
       - name: Stage only our runtime and matching preparer sources
