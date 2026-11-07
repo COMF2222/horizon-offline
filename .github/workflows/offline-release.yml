@@ -229,7 +229,9 @@ jobs:
           $program = (Resolve-Path launcher/target/release/horizon-launcher.exe).Path
           $hostRoot = Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/offline-skin-e2e" -Directory | Select-Object -First 1
           $selected = (Get-Content -LiteralPath "$($hostRoot.FullName)/host/launcher/settings.json" -Raw | ConvertFrom-Json).selected
-          $resources = "$($hostRoot.FullName)/host/launcher/versions/$selected/.local/horizon-client/26.3"
+          $runtime = "$($hostRoot.FullName)/host/launcher/versions/$selected"
+          $minecraft = (Get-Content -LiteralPath "$runtime/research-lock.json" -Raw | ConvertFrom-Json).minecraft.version
+          $resources = "$runtime/.local/horizon-client/$minecraft"
           python tools/offline_skin_e2e.py --launcher "$program" --mods --resources "$resources" --out "$env:RUNNER_TEMP/offline-skin-mods-e2e" --headless
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python tools/offline_mods_e2e.py --launcher "$program" --resources "$resources" --out "$env:RUNNER_TEMP/offline-mod-behavior" --headless
