@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -375,7 +378,7 @@
   "Move to Trash": "휴지통으로 이동",
   "Start from": "시작 위치",
   "Asking Mojang for its versions…": "Mojang에 버전 정보 요청 중...",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64×64(또는 64×32) 스킨 PNG 및 64×32 망토 PNG 파일입니다. 런처에 보관되며 해당 이름으로 플레이할 때 게임에 적용됩니다. 현재는 기본 스킨이 표시되며 지원 시 적용됩니다. Microsoft 계정 스킨 및 망토 지원: 곧 출시 예정.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "다른 이름으로 오프라인 플레이를 하고 상단 바에서 전환하세요. 온라인 서버는 오프라인 이름을 지원하지 않습니다.",
   "Report on Discord": "Discord에 보고하기",
   "Export": "내보내기",

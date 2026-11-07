@@ -238,7 +238,7 @@ fn record_failure(tag: &str, error: &str) {
 pub fn take_failure() -> Option<String> {
     let text = fs::read_to_string(failure_file()).ok()?;
     let _ = fs::remove_file(failure_file());
-    failure_to_show(&text, backend::VERSION)
+    failure_to_show(&text, backend::update_version())
 }
 
 /// What [`take_failure`] shows of the failure file's `text` to launcher `version`. A file from a
@@ -259,6 +259,25 @@ fn failure_to_show(text: &str, version: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "offline")]
+    fn an_older_offline_stage_cannot_replace_an_already_updated_distribution() {
+        let staged = Staged {
+            tag: "offline-v0.3.0".into(),
+            payload: "not-a-real-stage".into(),
+            sha256: String::new(),
+        };
+        for installed in ["0.3.0", "0.4.0"] {
+            install_over(Some(installed), &staged, Path::new("unused"), |_| {
+                panic!("A stale stage must not touch the installed program")
+            })
+            .unwrap();
+        }
+        let failure = "offline-v0.3.0\nThe update could not be installed";
+        assert!(failure_to_show(failure, "0.2.0").is_some());
+        assert!(failure_to_show(failure, "0.4.0").is_none());
+    }
 
     /// A failure is shown to the launcher it failed to replace, and not to one already at that
     /// release or past it; a file without the tag line, from an older installer, still shows.

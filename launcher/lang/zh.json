@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -375,7 +378,7 @@
   "Move to Trash": "移到回收站",
   "Start from": "初始内容",
   "Asking Mojang for its versions…": "正在向 Mojang 获取版本列表…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64×64（或 64×32）的皮肤 PNG 和 64×32 的披风 PNG，由启动器保存，在这个名称游玩时交给游戏。游戏目前还只绘制默认皮肤，等支持后就会使用这些。Microsoft 账户的皮肤和披风：即将推出。",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "用其他名称离线游玩，可在顶栏切换。在线服务器不接受离线名称。",
   "Report on Discord": "在 Discord 上报告",
   "Export": "导出",

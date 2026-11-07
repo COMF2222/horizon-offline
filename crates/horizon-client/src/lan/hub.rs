@@ -1172,8 +1172,24 @@ impl Hub {
                     })
                 };
                 let uuid = other.uuid;
+                let skin = viewer.supports_offline_skin.then(|| {
+                    offline_skin_packet(
+                        uuid,
+                        if hide {
+                            None
+                        } else {
+                            other.offline_skin.as_ref()
+                        },
+                    )
+                });
                 let viewer = &mut self.guests[i];
+                if hide && let Some(skin) = &skin {
+                    viewer.send(skin);
+                }
                 viewer.send(&packet);
+                if !hide && let Some(skin) = skin {
+                    viewer.send(&skin);
+                }
                 if hide {
                     viewer.tab_hidden.insert(uuid);
                 } else {
@@ -1397,6 +1413,7 @@ impl Hub {
                 }
             }
         }
+        self.sync_offline_skins(i);
         self.send_level_info(i, ctx, true);
         // ServerLevel.addNewPlayer: the chunk tracking starts at the player.
         let g = &mut self.guests[i];
@@ -1411,6 +1428,39 @@ impl Hub {
         // ServerPlayer.sendPostEffects and initInventoryMenu.
         self.send_post_effects(i);
         self.send_inventory(i);
+    }
+
+    /// Replay visible skins after player-list entries, then tell existing compatible peers
+    /// about the newcomer. Ownership comes from the admitted login, never from its payload.
+    fn sync_offline_skins(&self, i: usize) {
+        if self.lan.shared.config.online.is_some() {
+            return;
+        }
+        let joined = &self.guests[i];
+        if joined.supports_offline_skin {
+            for owner in self
+                .guests
+                .iter()
+                .filter(|g| g.placed && self.sees(joined.permission, g.uuid))
+            {
+                joined.send(&offline_skin_packet(
+                    owner.uuid,
+                    owner.offline_skin.as_ref(),
+                ));
+            }
+        }
+        if !joined.placed {
+            return;
+        }
+        let skin = offline_skin_packet(joined.uuid, joined.offline_skin.as_ref());
+        for peer in self.guests.iter().filter(|g| {
+            g.conn != joined.conn
+                && (g.placed || g.held)
+                && g.supports_offline_skin
+                && self.sees(g.permission, joined.uuid)
+        }) {
+            peer.send(&skin);
+        }
     }
 
     /// What an import changed, told to the held player's client the way a join tells it: game
@@ -1487,6 +1537,7 @@ impl Hub {
             actions: Self::INFO_ACTIONS,
             entries,
         }));
+        self.sync_offline_skins(i);
         recentered
     }
 
@@ -1536,6 +1587,7 @@ impl Hub {
                 g.sender.send(newcomer.clone());
             }
         }
+        self.sync_offline_skins(i);
     }
 
     /// The guest index of the player `uuid` placed from the hand-over `id` (its import or
@@ -2314,6 +2366,15 @@ impl Hub {
             &mut self.attachment_snapshots,
             self.sync_attachments,
         );
+        // Clear the override while the UUID is still present in the clients' player lists.
+        let cleared = offline_skin_packet(g.uuid, None);
+        for peer in self
+            .guests
+            .iter()
+            .filter(|p| (p.placed || p.held) && p.supports_offline_skin)
+        {
+            peer.send(&cleared);
+        }
         // To the held players too: they were told of this one, and see its entity.
         self.broadcast_watching(&C::PlayerInfoRemove(play::PlayerInfoRemove {
             uuids: vec![g.uuid],
@@ -4887,6 +4948,14 @@ fn shared_flags(sneaking: bool, sprinting: bool, body: &BodyFlags) -> i8 {
     shared
 }
 
+/// Only the server writes the identity beside an uploaded image.
+fn offline_skin_packet(uuid: u128, skin: Option<&horizon_protocol::offline_skin::Skin>) -> C {
+    C::CustomPayload(horizon_protocol::packets::configuration::CustomPayload {
+        channel: horizon_protocol::offline_skin::CHANNEL.into(),
+        data: horizon_protocol::offline_skin::encode_server(uuid, skin),
+    })
+}
+
 /// The profile properties the player list gives a player: those it logged
 /// in with, or for the integrated server's owner (who logs in with none) the
 /// signed-in account's, once fetched (`IntegratedServer.getSingleplayerProfile`).
@@ -4954,6 +5023,8 @@ mod tests {
                 uuid: 1,
                 name: "Bob".into(),
                 properties: Vec::new(),
+                offline_skin: None,
+                supports_offline_skin: false,
                 info: horizon_protocol::packets::configuration::ClientInformation::new(8),
                 brand: "vanilla".into(),
                 sender: crate::lan::PlayerSender::new(tx, std::sync::Arc::default()),
@@ -4969,6 +5040,144 @@ mod tests {
         bob.dimension = "minecraft:overworld".into();
         hub.guests.push(bob);
         (hub, rx)
+    }
+
+    fn add_skin_guest(
+        hub: &mut Hub,
+        conn: u32,
+        uuid: u128,
+        supported: bool,
+        skin: Option<horizon_protocol::offline_skin::Skin>,
+    ) -> std::sync::mpsc::Receiver<crate::lan::Out> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut guest = Guest::new(
+            crate::lan::Joined {
+                conn,
+                uuid,
+                name: format!("Guest{conn}"),
+                properties: Vec::new(),
+                offline_skin: skin,
+                supports_offline_skin: supported,
+                info: horizon_protocol::packets::configuration::ClientInformation::new(8),
+                brand: if supported { "horizon" } else { "vanilla" }.into(),
+                sender: crate::lan::PlayerSender::new(tx, std::sync::Arc::default()),
+                latency: std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0)),
+                address: "127.0.0.1:25565".parse().unwrap(),
+                expected: false,
+            },
+            conn as i32,
+            [0.5, 64.0, 0.5],
+            8,
+        );
+        guest.placed = true;
+        guest.dimension = "minecraft:overworld".into();
+        hub.guests.push(guest);
+        rx
+    }
+
+    fn received_offline_skins(
+        rx: &std::sync::mpsc::Receiver<crate::lan::Out>,
+    ) -> std::collections::BTreeMap<u128, Option<horizon_protocol::offline_skin::Skin>> {
+        let mut skins = std::collections::BTreeMap::new();
+        for out in rx.try_iter() {
+            let bodies = match out {
+                crate::lan::Out::Packet(body) => vec![body],
+                crate::lan::Out::Packets(bodies) => bodies,
+                crate::lan::Out::Disconnect(_) => continue,
+            };
+            for body in bodies {
+                let mut reader = horizon_protocol::buf::Reader::new(&body);
+                let id = reader.varint().unwrap();
+                if let Ok(C::CustomPayload(p)) = C::decode(id, reader.rest())
+                    && p.channel == horizon_protocol::offline_skin::CHANNEL
+                {
+                    let (uuid, skin) =
+                        horizon_protocol::offline_skin::decode_server(&p.data).unwrap();
+                    skins.insert(uuid, skin);
+                }
+            }
+        }
+        skins
+    }
+
+    #[test]
+    fn offline_skins_replay_to_late_joiners_and_use_the_admitted_identity() {
+        use horizon_protocol::offline_skin::{RGBA_LEN, Skin};
+        let (mut hub, bob) = hub_with_a_guest();
+        let original = Skin {
+            rgba: vec![0xEE; RGBA_LEN],
+            slim: false,
+        };
+        hub.guests[0].supports_offline_skin = true;
+        hub.guests[0].offline_skin = Some(original.clone());
+        // Image bytes may resemble another player's ID, but cannot choose the sender's UUID.
+        let mut offered = Skin {
+            rgba: vec![0x77; RGBA_LEN],
+            slim: true,
+        };
+        offered.rgba[..16].copy_from_slice(&1_u128.to_be_bytes());
+        let newcomer = add_skin_guest(&mut hub, 2, 22, true, Some(offered.clone()));
+        let unsupported = add_skin_guest(&mut hub, 3, 33, false, None);
+        hub.sync_offline_skins(1);
+        assert_eq!(
+            received_offline_skins(&bob),
+            std::collections::BTreeMap::from([(22, Some(offered.clone()))]),
+        );
+        assert_eq!(
+            received_offline_skins(&newcomer),
+            std::collections::BTreeMap::from([
+                (1, Some(original)),
+                (22, Some(offered)),
+                (33, None),
+            ]),
+        );
+        assert!(received_offline_skins(&unsupported).is_empty());
+    }
+
+    #[test]
+    fn offline_skin_removal_and_rejoin_do_not_keep_the_previous_image() {
+        use horizon_protocol::offline_skin::{RGBA_LEN, Skin};
+        let (mut hub, observer) = hub_with_a_guest();
+        hub.guests[0].supports_offline_skin = true;
+        let _leaving = add_skin_guest(
+            &mut hub,
+            2,
+            22,
+            true,
+            Some(Skin {
+                rgba: vec![0xCC; RGBA_LEN],
+                slim: false,
+            }),
+        );
+        hub.sync_offline_skins(1);
+        received_offline_skins(&observer);
+        hub.remove_guest(1, "test disconnect");
+        assert_eq!(
+            received_offline_skins(&observer),
+            std::collections::BTreeMap::from([(22, None)])
+        );
+        let rejoined = add_skin_guest(&mut hub, 3, 22, true, None);
+        hub.sync_offline_skins(1);
+        assert_eq!(
+            received_offline_skins(&observer),
+            std::collections::BTreeMap::from([(22, None)])
+        );
+        assert_eq!(received_offline_skins(&rejoined).get(&22), Some(&None));
+    }
+
+    #[test]
+    fn offline_skin_replay_respects_hidden_players() {
+        use horizon_protocol::offline_skin::{RGBA_LEN, Skin};
+        let (mut hub, _bob) = hub_with_a_guest();
+        hub.guests[0].supports_offline_skin = true;
+        hub.guests[0].offline_skin = Some(Skin {
+            rgba: vec![0xAA; RGBA_LEN],
+            slim: false,
+        });
+        let newcomer = add_skin_guest(&mut hub, 2, 22, true, None);
+        hub.hidden.insert(1, 2);
+        hub.sync_offline_skins(1);
+        assert!(!received_offline_skins(&newcomer).contains_key(&1));
     }
 
     /// `onGameRuleChanged`: a changed `reduced_debug_info` reaches each player

@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -375,7 +378,7 @@
   "Move to Trash": "Perkelti į šiukšliadėžę",
   "Start from": "Pradėkite nuo",
   "Asking Mojang for its versions…": "Klausimas Mojang jo versijų…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64 × 64 (arba 64 × 32) odos PNG ir 64 × 32 PNG, kuriuos saugo paleidimo priemonė ir suteikia žaidimui, kai žaidžiamas šis pavadinimas. Žaidimas šiuo metu piešia numatytuosius apvalkalus; jas naudoja, kai tik gali. „Microsoft“ paskyros apvalkalas: netrukus.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "Žaiskite neprisijungę kitu pavadinimu ir perjunkite iš viršutinės juostos. Internetiniai serveriai neprisijungus pavadinimų nepriima.",
   "Report on Discord": "Report on Discord",
   "Export": "Eksportuoti",

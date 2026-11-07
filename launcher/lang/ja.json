@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -124,7 +127,7 @@
   "Choose a cape…": "ケープを選択…",
   "No cape": "ケープなし",
   "Default": "デフォルト",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64×64（または64×32）のスキンPNGと64×32のケープPNG。ランチャーに保存され、この名前でプレイ時にゲームに渡されます。現在はゲームがデフォルトスキンを表示しますが、対応後はこれらが使用されます。Microsoftアカウントのスキンとケープ：近日対応予定。",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Accent colour": "アクセントカラー",
   "Horizon's violet by default. Every colour keeps text as easy to read.": "デフォルトはHorizonのバイオレット。どの色でもテキストの読みやすさを維持します。",
   "Choose": "選択",

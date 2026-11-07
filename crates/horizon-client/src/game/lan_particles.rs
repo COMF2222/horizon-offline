@@ -972,6 +972,8 @@ mod tests {
                     uuid,
                     name: name.into(),
                     properties: Vec::new(),
+                    offline_skin: None,
+                    supports_offline_skin: false,
                     info: horizon_protocol::packets::configuration::ClientInformation::new(8),
                     brand: "vanilla".into(),
                     sender: PlayerSender::new(tx, std::sync::Arc::default()),

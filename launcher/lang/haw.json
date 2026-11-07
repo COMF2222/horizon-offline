@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "Neʻe i ka ʻōpala",
   "Start from": "E hoʻomaka mai",
   "Asking Mojang for its versions…": "Ke noi nei iā Mojang no kāna mau mana…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "He 64×64 (a i ʻole 64×32) ʻili PNG a me 64×32 ʻahu PNG, mālama ʻia e ka mea hoʻolaha a hāʻawi ʻia i ka pāʻani ke pāʻani kēia inoa. Huki ka pāʻani i nā ʻili paʻamau no kēia manawa; hoʻohana ia i kēia mau mea i ka manawa hiki. Ka ʻili a me ka ʻahuʻula o kahi moʻokāki Microsoft: hiki koke mai.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "E pāʻani i waho ma lalo o ka inoa ʻē aʻe, a e hoʻololi mai ka pā luna. ʻAʻole lawe nā kikowaena pūnaewele i nā inoa hoʻopahemo.",
   "Report on Discord": "Hōʻike ma Discord",
   "Export": "Hoʻokuʻu aku",

@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -375,7 +378,7 @@
   "Move to Trash": "Premjesti u smeće",
   "Start from": "Pokreni iz",
   "Asking Mojang for its versions…": "Traženje verzija od Mojanga…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "PNG slika skina 64×64 (ili 64×32) i PNG slika plašta 64×32, koje pokretač čuva i daje igri kada ovo ime igra. Igra za sada crta zadane skinove; koristit će ove čim bude mogla. Skin i plašt Microsoft računa: stiže uskoro.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "Igrajte izvan mreže pod drugim imenom i prebacite se s gornje trake. Mrežni poslužitelji ne prihvaćaju izvanmrežna imena.",
   "Report on Discord": "Prijavi na Discordu",
   "Export": "Izvezi",

@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "குப்பைக்கு நகர்த்தவும்",
   "Start from": "இருந்து தொடங்குங்கள்",
   "Asking Mojang for its versions…": "Mojang-இடம் அதன் பதிப்புகளைக் கேட்கிறது…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64×64 (அல்லது 64×32) ஸ்கின் PNG மற்றும் 64×32 கேப் PNG; துவக்கி இவற்றை வைத்திருந்து, இந்தப் பெயர் விளையாடும்போது கேமிற்கு வழங்கும். தற்போதைக்கு கேம் இயல்புநிலை ஸ்கின்களை வரைகிறது; முடிந்ததும் இவற்றைப் பயன்படுத்தும். Microsoft கணக்கின் ஸ்கின் மற்றும் கேப்: விரைவில்.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "வேறொரு பெயரில் ஆஃப்லைனில் விளையாடவும், மேல் பட்டியில் இருந்து மாறவும். ஆன்லைன் சேவையகங்கள் ஆஃப்லைன் பெயர்களை எடுக்காது.",
   "Report on Discord": "Discord-இல் புகாரளி",
   "Export": "ஏற்றுமதி",

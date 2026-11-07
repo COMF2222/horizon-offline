@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "Pārvietot uz miskasti",
   "Start from": "Sāciet no",
   "Asking Mojang for its versions…": "Vaicājot Mojang tās versijas…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64 × 64 (vai 64 × 32) apvalka PNG un 64 × 32 apmetņa PNG, ko glabā palaišanas programma un piešķir spēlei, kad tiek atskaņots šis nosaukums. Spēle pagaidām zīmē noklusējuma apvalkus; tā tos izmanto, kad vien var. Microsoft konta āda un apmetnis: drīzumā.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "Spēlējiet bezsaistē ar citu nosaukumu un pārslēdzieties no augšējās joslas. Tiešsaistes serveri neņem bezsaistes nosaukumus.",
   "Report on Discord": "Ziņot Discord",
   "Export": "Eksportēt",

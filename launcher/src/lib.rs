@@ -35,6 +35,8 @@ pub mod native_fit;
 pub mod native_mods;
 pub mod native_status;
 pub mod nightly;
+pub mod offline_runtime;
+pub mod offline_update;
 pub mod other_launchers;
 pub mod packs;
 pub mod pictures;

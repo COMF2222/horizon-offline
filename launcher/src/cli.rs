@@ -26,6 +26,9 @@ struct Cli {
     /// Print JSON instead of text, where a command has something to report
     #[arg(long, global = true)]
     json: bool,
+    /// The independent distribution identity, for authenticated update handoff checks.
+    #[arg(long, hide = true)]
+    offline_version: bool,
     #[command(subcommand)]
     command: Option<Cmd>,
 }
@@ -1169,6 +1172,13 @@ pub fn run() -> Option<i32> {
         }
     }
     let cli = Cli::from_arg_matches(&definition.get_matches()).unwrap_or_else(|e| e.exit());
+    if cli.offline_version {
+        println!(
+            "horizon-offline {}",
+            horizon_launcher::offline_runtime::VERSION
+        );
+        return Some(0);
+    }
     let command = cli.command?;
     let result = match command {
         Cmd::Mcp | Cmd::AgentConfig { .. } if no_ai => Err(horizon_core::no_ai::REFUSAL.into()),
@@ -1870,7 +1880,8 @@ fn update(check: bool, as_json: bool) -> Result<(), String> {
         json(serde_json::json!({
             "horizon": updates.horizon.as_ref().map(|r| &r.tag),
             "launcher": updates.launcher.as_ref().and_then(|r| backend::launcher_version(&r.tag)),
-            "launcher_current": backend::VERSION,
+            "launcher_current": backend::update_version(),
+            "launcher_upstream": backend::VERSION,
         }));
         return Ok(());
     }
@@ -1884,13 +1895,13 @@ fn update(check: bool, as_json: bool) -> Result<(), String> {
         }
     }
     match &updates.launcher {
-        None => println!("Launcher: {} is up to date.", backend::VERSION),
+        None => println!("Launcher: {} is up to date.", backend::display_version()),
         Some(r) => {
             let version = backend::launcher_version(&r.tag).unwrap_or_default();
             if check {
                 println!(
                     "Launcher: {version} is available (this is {}).",
-                    backend::VERSION
+                    backend::display_version()
                 );
             } else if !backend::self_update_allowed() {
                 println!("Launcher: {version} is available; this build does not replace itself.");

@@ -862,8 +862,27 @@ struct Parts {
     uuid: u128,
     name: String,
     properties: Vec<login::Property>,
+    offline_skin: Option<horizon_protocol::offline_skin::Skin>,
+    supports_offline_skin: bool,
     info: ClientInformation,
     brand: String,
+}
+
+/// A successful response (including no skin) acknowledges the capability. Invalid data cannot
+/// create a supported client or replace an already accepted skin.
+#[derive(Default)]
+struct OfflineSkinOffer {
+    skin: Option<horizon_protocol::offline_skin::Skin>,
+    supported: bool,
+}
+
+impl OfflineSkinOffer {
+    fn receive(&mut self, data: &[u8]) {
+        if let Ok(skin) = horizon_protocol::offline_skin::decode_client(data) {
+            self.skin = skin;
+            self.supported = true;
+        }
+    }
 }
 
 fn login_and_configure(
@@ -1090,6 +1109,32 @@ fn login_and_configure(
             return Ok(None);
         }
     }
+    // Offline Horizon peers can share a local skin. There is no UUID in the upload: it belongs
+    // to the login above. Older clients ignore the offer and still answer the ordinary ping.
+    let mut offline_skin = OfflineSkinOffer::default();
+    if brand == "horizon" && shared.config.online.is_none() {
+        send(
+            c,
+            cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                channel: horizon_protocol::offline_skin::CHANNEL.into(),
+                data: vec![horizon_protocol::offline_skin::VERSION],
+            }),
+        )?;
+        send(c, cfg::Clientbound::Ping(cfg::Ping { id: 3 }))?;
+        loop {
+            let (id, payload) = c.recv().map_err(e)?;
+            match decode_config(id, &payload).map_err(e)? {
+                cfg::Serverbound::CustomPayload(p)
+                    if p.channel == horizon_protocol::offline_skin::CHANNEL =>
+                {
+                    offline_skin.receive(&p.data);
+                }
+                cfg::Serverbound::Pong(p) if p.id == 3 => break,
+                cfg::Serverbound::ClientInformation(i) => info = i,
+                _ => {}
+            }
+        }
+    }
     for packet in sync.registry_packets(known_pack, &shared.config.levels) {
         send(c, cfg::Clientbound::RegistryData(packet))?;
     }
@@ -1121,6 +1166,8 @@ fn login_and_configure(
         uuid,
         name: name.to_owned(),
         properties,
+        offline_skin: offline_skin.skin,
+        supports_offline_skin: offline_skin.supported,
         info,
         brand,
     }))
@@ -1311,6 +1358,8 @@ fn play(
         uuid: parts.uuid,
         name: parts.name,
         properties: parts.properties,
+        offline_skin: parts.offline_skin,
+        supports_offline_skin: parts.supports_offline_skin,
         info: parts.info,
         brand: parts.brand,
         sender,
@@ -1629,6 +1678,25 @@ impl KeepAliveWatch {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offline_skin_capability_requires_a_valid_upload_even_without_a_skin() {
+        use horizon_protocol::offline_skin::{RGBA_LEN, Skin, encode_client};
+        let mut offer = OfflineSkinOffer::default();
+        offer.receive(&[horizon_protocol::offline_skin::VERSION]);
+        assert!(!offer.supported);
+        offer.receive(&encode_client(None));
+        assert!(offer.supported && offer.skin.is_none());
+        let skin = Skin {
+            rgba: vec![0xAA; RGBA_LEN],
+            slim: true,
+        };
+        offer.receive(&encode_client(Some(&skin)));
+        let mut forged_identity = 55_u128.to_be_bytes().to_vec();
+        forged_identity.extend_from_slice(&encode_client(Some(&skin)));
+        offer.receive(&forged_identity);
+        assert_eq!(offer.skin, Some(skin));
+    }
 
     /// Logs in through `c` and answers the `LoginFinished` profile.
     fn login_profile(mut c: Connection, name: &str) -> login::GameProfile {

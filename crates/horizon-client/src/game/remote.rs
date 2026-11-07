@@ -495,6 +495,61 @@ enum OwnProfile {
     Done(Option<horizon_client::skins::Textures>),
 }
 
+struct SharedOfflineSkin {
+    image: std::sync::Arc<horizon_protocol::offline_skin::Skin>,
+    location: String,
+}
+
+/// Session-local images belong only to profiles the server has introduced.
+#[derive(Default)]
+struct OfflineSkins {
+    supported: bool,
+    entries: HashMap<u128, SharedOfflineSkin>,
+}
+
+impl OfflineSkins {
+    fn receive(
+        &mut self,
+        known: bool,
+        uuid: u128,
+        image: Option<horizon_protocol::offline_skin::Skin>,
+    ) {
+        if !self.supported || !known {
+            return;
+        }
+        let Some(image) = image else {
+            self.entries.remove(&uuid);
+            return;
+        };
+        if image.rgba.len() != horizon_protocol::offline_skin::RGBA_LEN {
+            return;
+        }
+        if self
+            .entries
+            .get(&uuid)
+            .is_some_and(|old| *old.image == image)
+        {
+            return;
+        }
+        let mut location = format!("horizon/offline_skin/{uuid:032x}/");
+        for byte in horizon_client::skins::sha1(&image.rgba) {
+            location.push_str(&format!("{byte:02x}"));
+        }
+        self.entries.insert(
+            uuid,
+            SharedOfflineSkin {
+                image: std::sync::Arc::new(image),
+                location,
+            },
+        );
+    }
+
+    fn clear(&mut self) {
+        self.supported = false;
+        self.entries.clear();
+    }
+}
+
 pub(super) struct Remote {
     pub session: Session,
     pub brand: String,
@@ -657,6 +712,8 @@ pub(super) struct Remote {
     tab_players: HashMap<u128, horizon_client::tab_list::TabPlayer>,
     /// Each listed profile's unpacked `textures` property.
     skin_textures: HashMap<u128, horizon_client::skins::Textures>,
+    /// PNG skins explicitly shared by this offline Horizon server.
+    offline_skins: OfflineSkins,
     /// Active skin and cape from the services profile when the server sent none.
     own_profile: OwnProfile,
     /// The skin texture each profile's players show, once its download is ready.
@@ -1160,6 +1217,7 @@ impl Game<'_> {
             players: HashMap::new(),
             tab_players: HashMap::new(),
             skin_textures: HashMap::new(),
+            offline_skins: OfflineSkins::default(),
             own_profile: OwnProfile::Idle,
             skins: HashMap::new(),
             listed: Default::default(),
@@ -2001,6 +2059,11 @@ impl Game<'_> {
                         remote.mod_net = true;
                     }
                 }
+                Event::OfflineSkins => {
+                    if let Some(remote) = &mut self.remote {
+                        remote.offline_skins.supported = true;
+                    }
+                }
                 Event::FarTerrain(offer) => {
                     if let Some(remote) = &mut self.remote {
                         remote.far_terrain = Some(offer);
@@ -2016,6 +2079,7 @@ impl Game<'_> {
                     // offers its own far terrain, or none.
                     if let Some(remote) = &mut self.remote {
                         remote.far_terrain = None;
+                        remote.offline_skins.clear();
                     }
                     self.clear_lod();
                     if let Some(remote) = &self.remote {
@@ -3231,6 +3295,16 @@ impl Game<'_> {
             // ClientCommonPacketListenerImpl.handlePing runs on the game
             // thread, after all preceding packets (especially teleports).
             C::Ping(p) => self.send(S::Pong(p)),
+            C::CustomPayload(p) if p.channel == horizon_protocol::offline_skin::CHANNEL => {
+                if let Ok((uuid, image)) = horizon_protocol::offline_skin::decode_server(&p.data)
+                    && let Some(remote) = &mut self.remote
+                    && !remote.online_mode
+                {
+                    remote
+                        .offline_skins
+                        .receive(remote.players.contains_key(&uuid), uuid, image);
+                }
+            }
             // A native mod's server half to its client half.
             C::CustomPayload(p) if p.channel == horizon_protocol::mod_net::CHANNEL => {
                 self.remote_native_net(&p.data);
@@ -3283,6 +3357,9 @@ impl Game<'_> {
                     r.own_invisible = false;
                     r.own_on_fire = false;
                     r.online_mode = p.online_mode;
+                    if p.online_mode {
+                        r.offline_skins.clear();
+                    }
                     r.enforces_secure_chat = p.enforces_secure_chat;
                     r.entity_id = p.player_id;
                     r.local_entity_silent = false;
@@ -5027,6 +5104,7 @@ impl Game<'_> {
                         r.chat_sessions.remove(&u);
                         r.chat_validators.remove(&u);
                         r.skin_textures.remove(&u);
+                        r.offline_skins.entries.remove(&u);
                         r.listed.remove(&u);
                         r.attachments.remove(&Holder::Player(u));
                     }
@@ -5428,6 +5506,12 @@ impl Game<'_> {
             return;
         };
         let local = local.unwrap_or(r.profile);
+        let shared: Vec<_> = r
+            .offline_skins
+            .entries
+            .iter()
+            .map(|(uuid, skin)| (*uuid, skin.location.clone(), skin.image.slim))
+            .collect();
         let mut entries = skin_entries(
             &r.level_players,
             &r.skin_textures,
@@ -5479,6 +5563,17 @@ impl Game<'_> {
                 }
                 resolved.push((uuid, skin));
             }
+        }
+        // Resolve every listed profile, but reserve atlas slots only when a
+        // model or player-list face actually draws the shared image.
+        for (uuid, location, is_slim) in shared {
+            resolved.retain(|(profile, _)| *profile != uuid);
+            if is_slim {
+                slim.insert(uuid);
+            } else {
+                slim.remove(&uuid);
+            }
+            resolved.push((uuid, location));
         }
         // An offline name's skin from the launcher, where neither the server
         // nor an account gives the local player one.
@@ -5695,7 +5790,21 @@ impl Game<'_> {
         uuid: u128,
         (skin, slim): (String, bool),
     ) -> (String, bool) {
-        if (skin.starts_with("skins/") || skin == "horizon/offline_skin") && !self.again_skin(&skin)
+        if skin.starts_with("horizon/offline_skin/")
+            && (!self.skin_slots.contains(&skin) || !self.gui.atlas.sprites.contains_key(&skin))
+        {
+            let shared = self
+                .remote
+                .as_ref()
+                .and_then(|remote| remote.offline_skins.entries.get(&uuid))
+                .filter(|shared| shared.location == skin)
+                .map(|shared| shared.image.clone());
+            if let Some(shared) = shared {
+                self.store_skin(skin.clone(), shared.rgba.clone());
+            }
+        }
+        if (skin.starts_with("skins/") || skin.starts_with("horizon/offline_skin"))
+            && !self.again_skin(&skin)
         {
             let skin = horizon_client::tab_list::default_skin(uuid);
             return (skin.to_owned(), skin.contains("/slim/"));
@@ -10218,6 +10327,22 @@ impl Game<'_> {
                 m
             }),
             "players": r.players.values().collect::<Vec<_>>(),
+            // Peer-skin diagnostics for integration tests and control clients; never image bytes.
+            "offline_skins": r.offline_skins.entries.iter().map(|(uuid, skin)| {
+                serde_json::json!({
+                    "uuid": format!("{uuid:032x}"),
+                    "name": r.players.get(uuid),
+                    "slim": skin.image.slim,
+                    "texture": skin.location,
+                    "atlas_ready": self.skin_slots.contains(&skin.location)
+                        && self.gui.atlas.sprites.contains_key(&skin.location),
+                    "model_uses_skin": self.mobs.iter().any(|mob| {
+                        r.level_players.get(&(mob.id as i32)) == Some(uuid)
+                            && mob.skin.as_deref() == Some(skin.location.as_str())
+                            && mob.slim == skin.image.slim
+                    }),
+                })
+            }).collect::<Vec<_>>(),
             // Where the other players' entities are (harnesses check movement).
             // What the other players hold and wear, as this client draws them.
             "player_equipment": self
@@ -11029,10 +11154,116 @@ fn client_has_level(logged_in: bool, reconfiguring: Option<u64>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        boat_interact_passes, client_has_level, hold_server_fire, item_frame_interact_passes,
-        keep_client_state, open_hash_order, remote_object_swings, remote_use_swings,
-        synced_local_use,
+        OfflineSkins, boat_interact_passes, client_has_level, hold_server_fire,
+        item_frame_interact_passes, keep_client_state, open_hash_order, remote_object_swings,
+        remote_use_swings, synced_local_use,
     };
+
+    fn shared_skin(color: u8, slim: bool) -> horizon_protocol::offline_skin::Skin {
+        horizon_protocol::offline_skin::Skin {
+            rgba: vec![color; horizon_protocol::offline_skin::RGBA_LEN],
+            slim,
+        }
+    }
+
+    #[test]
+    fn shared_skins_require_negotiation_and_a_known_player() {
+        let mut skins = OfflineSkins::default();
+        skins.receive(true, 1, Some(shared_skin(10, false)));
+        assert!(skins.entries.is_empty());
+        skins.supported = true;
+        for uuid in 1..32 {
+            skins.receive(false, uuid, Some(shared_skin(20, true)));
+        }
+        assert!(skins.entries.is_empty());
+        skins.receive(true, 1, Some(shared_skin(30, true)));
+        assert_eq!(skins.entries[&1].image.rgba[0], 30);
+    }
+
+    #[test]
+    fn different_players_keep_distinct_skin_images_and_models() {
+        let mut skins = OfflineSkins {
+            supported: true,
+            ..OfflineSkins::default()
+        };
+        skins.receive(true, 1, Some(shared_skin(10, false)));
+        skins.receive(true, 2, Some(shared_skin(20, true)));
+        assert_eq!(
+            (
+                skins.entries[&1].image.rgba[0],
+                skins.entries[&1].image.slim
+            ),
+            (10, false)
+        );
+        assert_eq!(
+            (
+                skins.entries[&2].image.rgba[0],
+                skins.entries[&2].image.slim
+            ),
+            (20, true)
+        );
+        assert_ne!(skins.entries[&1].location, skins.entries[&2].location);
+    }
+
+    #[test]
+    fn changing_a_shared_skin_changes_its_atlas_identity() {
+        let mut skins = OfflineSkins {
+            supported: true,
+            ..OfflineSkins::default()
+        };
+        skins.receive(true, 1, Some(shared_skin(10, false)));
+        let old = skins.entries[&1].location.clone();
+        skins.receive(true, 1, Some(shared_skin(20, true)));
+        assert_ne!(skins.entries[&1].location, old);
+        assert_eq!(
+            (
+                skins.entries[&1].image.rgba[0],
+                skins.entries[&1].image.slim
+            ),
+            (20, true)
+        );
+        assert_eq!(skins.entries.len(), 1);
+    }
+
+    #[test]
+    fn malformed_shared_images_do_not_replace_a_valid_skin() {
+        let mut skins = OfflineSkins {
+            supported: true,
+            ..OfflineSkins::default()
+        };
+        skins.receive(true, 1, Some(shared_skin(10, false)));
+        skins.receive(
+            true,
+            1,
+            Some(horizon_protocol::offline_skin::Skin {
+                rgba: vec![20],
+                slim: true,
+            }),
+        );
+        assert_eq!(
+            (
+                skins.entries[&1].image.rgba[0],
+                skins.entries[&1].image.slim
+            ),
+            (10, false)
+        );
+    }
+
+    #[test]
+    fn removing_a_skin_and_reconfiguring_forget_the_shared_images() {
+        let mut skins = OfflineSkins {
+            supported: true,
+            ..OfflineSkins::default()
+        };
+        skins.receive(true, 1, Some(shared_skin(10, false)));
+        skins.receive(true, 1, None);
+        assert!(skins.entries.is_empty());
+        skins.receive(true, 2, Some(shared_skin(20, true)));
+        skins.clear();
+        skins.receive(true, 2, Some(shared_skin(30, false)));
+        assert!(skins.entries.is_empty());
+        assert!(!skins.supported);
+    }
 
     /// The vanilla 26.3 client's ServerboundContainerClickPacket for a shift-click from hotbar slot 37
     /// into slot 10 listed 37 first (wire stream harness, `inventory`). The key 0 always leads.

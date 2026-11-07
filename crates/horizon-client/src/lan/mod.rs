@@ -76,6 +76,9 @@ pub struct Joined {
     pub name: String,
     /// The profile's properties (skin textures, in online mode).
     pub properties: Vec<horizon_protocol::packets::login::Property>,
+    /// A local skin offered over the negotiated offline-skin channel, bound to this login.
+    pub offline_skin: Option<horizon_protocol::offline_skin::Skin>,
+    pub supports_offline_skin: bool,
     pub info: ClientInformation,
     pub brand: String,
     pub sender: PlayerSender,

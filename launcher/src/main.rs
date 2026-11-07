@@ -2164,6 +2164,7 @@ fn version_tag(tag: &str) -> Div {
         .font_weight(FontWeight::MEDIUM)
         .child(
             horizon_launcher::nightly::label(tag)
+                .or_else(|| horizon_launcher::offline_runtime::label(tag))
                 .or_else(|| build_import::label(tag))
                 .unwrap_or_else(|| tag.trim_start_matches('v').to_string()),
         )
@@ -3156,7 +3157,10 @@ impl Launcher {
                 .id("launcher-version")
                 .px(px(8.))
                 .pt(px(6.))
-                .child(trf("Launcher {version}", &[("version", backend::VERSION)]))
+                .child(trf(
+                    "Launcher {version}",
+                    &[("version", &backend::display_version())],
+                ))
                 .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
                     this.version_clicked();
                     cx.notify();
@@ -3206,6 +3210,7 @@ impl Launcher {
             || tr("No version").into(),
             |tag| {
                 horizon_launcher::nightly::label(tag)
+                    .or_else(|| horizon_launcher::offline_runtime::label(tag))
                     .or_else(|| build_import::label(tag))
                     .unwrap_or_else(|| tag.clone())
             },
@@ -3865,32 +3870,32 @@ impl Launcher {
                     "downloading {version}, {percent}%",
                     &[("version", v), ("percent", &done)],
                 );
-                format!("{}  ·  {said}", backend::VERSION)
+                format!("{}  ·  {said}", backend::display_version())
             }
             SelfUpdate::Ready(v) => format!(
                 "{}  ·  {}",
-                backend::VERSION,
+                backend::display_version(),
                 trf("{version} available", &[("version", v)])
             ),
             SelfUpdate::Stuck(Some(e)) => format!(
                 "{}  ·  {}",
-                backend::VERSION,
+                backend::display_version(),
                 trf("the update failed: {error}", &[("error", e)])
             ),
             SelfUpdate::Stuck(None) => format!(
                 "{}  ·  {}",
-                backend::VERSION,
+                backend::display_version(),
                 self.launcher_update_help(None)
             ),
             SelfUpdate::Failed(e) => format!(
                 "{}  ·  {}",
-                backend::VERSION,
+                backend::display_version(),
                 trf("the update failed: {error}", &[("error", e)])
             ),
             SelfUpdate::Idle => match &self.updates.launcher {
                 Some(r) => format!(
                     "{}  ·  {}",
-                    backend::VERSION,
+                    backend::display_version(),
                     trf(
                         "{version} available",
                         &[(
@@ -3900,9 +3905,9 @@ impl Launcher {
                     )
                 ),
                 None if self.checked.is_some() && self.update_error.is_none() => {
-                    format!("{}  ·  {}", backend::VERSION, tr("up to date"))
+                    format!("{}  ·  {}", backend::display_version(), tr("up to date"))
                 }
-                None => backend::VERSION.to_string(),
+                None => backend::display_version(),
             },
         };
         let launcher_action = match &self.self_update {
@@ -5747,6 +5752,17 @@ fn main() {
         eprintln!("Could not restore the launcher's terminal streams: {error}");
         std::process::exit(1);
     }
+    // A version probe must not unpack a runtime, change selection, or touch player data.
+    if std::env::args_os()
+        .skip(1)
+        .eq([std::ffi::OsString::from("--offline-version")])
+    {
+        println!(
+            "horizon-offline {}",
+            horizon_launcher::offline_runtime::VERSION
+        );
+        return;
+    }
     // Windows setup: `setup --quiet` / `uninstall --quiet` run here without a window, and never
     // reach the CLI parser below (so neither the MCP tools nor the completions list them).
     #[cfg(windows)]
@@ -5772,6 +5788,12 @@ fn main() {
     // What the launcher downloads goes through the player's proxy, if they set one: the parts
     // that build their own agents (`horizon-port-pack`) are told before anything starts.
     horizon_launcher::proxy::announce(horizon_launcher::backend::Settings::load().proxy);
+    // Install our immutable game before any CLI, MCP, or window version selection.
+    // Extraction failure must not silently start an unpatched official game instead.
+    if let Err(error) = horizon_launcher::offline_runtime::ensure_installed() {
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
     // The setup wizard and `horizon-launcher.exe uninstall` (what Control Panel runs) are windows,
     // not CLI commands: asked of the CLI parser first, `uninstall` was refused as an unknown
     // subcommand, with the error going to the console that Control Panel's start doesn't have.

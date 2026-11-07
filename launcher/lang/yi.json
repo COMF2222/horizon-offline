@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "מאַך צו אָפּפאַל",
   "Start from": "אָנהייב פון",
   "Asking Mojang for its versions…": "אַסקינג Mojang פֿאַר זיין ווערסיעס ...",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "א 64 × 64 (אָדער 64 × 32) הויט פּנג און אַ 64 × 32 קאַפּע פּנג, געהאלטן דורך די לאָנטשער און געגעבן צו די שפּיל ווען דעם נאָמען פיעסעס. דער שפּיל דראָז די פעליקייַט סקינס פֿאַר איצט; עס ניצט די אַמאָל עס קענען. הויט און קאַפּע פון אַ Microsoft חשבון: באַלד קומען.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "שפּיל אָפפלינע אונטער אן אנדער נאָמען, און באַשטימען פֿון די שפּיץ באַר. אָנליין סערווערס טאָן ניט נעמען אָפפלינע נעמען.",
   "Report on Discord": "באריכט אויף Discord",
   "Export": "עקספּאָרט",

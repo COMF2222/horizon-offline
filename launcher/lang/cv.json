@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "Ҫӳп-ҫап ҫине куҫар",
   "Start from": "Пуҫласа",
   "Asking Mojang for its versions…": "Унӑн версийӗсемшӗн Mojang ыйтатӑп...",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64×64 (е 64×32) тир PNG тата 64×32 плащ PNG, вӗсене пускавҫӑ тытса тӑрать тата ҫак ят вылянӑ чухне вӑййа парать. Вӑйӑ хальлӗхе стандартлӑ тирсене ӳкерет; вӑл ҫаксемпе пӗрре усӑ курать. Microsoft аккаунтӑн тирӗпе плащӗ: часах пулать.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "Офлайн урӑх ятпа выляса илӗр те ҫӳлти йӗртен куҫӑр. Интернетри серверсем офлайн ятсене йышӑнмаҫҫӗ.",
   "Report on Discord": "Отчет на Discord",
   "Export": "Экспорт",

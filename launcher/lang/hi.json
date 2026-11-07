@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -375,7 +378,7 @@
   "Move to Trash": "रद्द करें / ट्रैश में ले जाएं",
   "Start from": "यहाँ से शुरू करें",
   "Asking Mojang for its versions…": "Mojang से इसके संस्करणों के लिए पूछा जा रहा है…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "एक 64×64 (या 64×32) स्किन PNG और एक 64×32 केप PNG, जिसे लॉन्चर द्वारा रखा जाता है और जब यह नाम खेलता है तो गेम को दिया जाता है। गेम अभी के लिए डिफ़ॉल्ट स्किन खींचता है; यह एक बार सक्षम होने पर इनका उपयोग करता है। माइक्रोसॉफ्ट खाते की स्किन और केप: जल्द ही आ रहा है।",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "दूसरे नाम से ऑफ़लाइन खेलें, और शीर्ष बार से स्विच करें। ऑनलाइन सर्वर ऑफ़लाइन नाम नहीं लेते हैं।",
   "Report on Discord": "Discord पर रिपोर्ट करें",
   "Export": "निर्यात करें",

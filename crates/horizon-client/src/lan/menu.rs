@@ -899,6 +899,8 @@ mod tests {
                 uuid: 2,
                 name: "Alex".into(),
                 properties: Vec::new(),
+                offline_skin: None,
+                supports_offline_skin: false,
                 info: ClientInformation::new(8),
                 brand: "test".into(),
                 sender: PlayerSender::new(tx, Arc::default()),

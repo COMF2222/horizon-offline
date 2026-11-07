@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "Skuif na asblik",
   "Start from": "Begin vanaf",
   "Asking Mojang for its versions…": "Vra Mojang vir sy weergawes ...",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "'n 64×64 (of 64×32) vel PNG en 'n 64×32 cape PNG, gehou deur die lanseerder en aan die speletjie gegee wanneer hierdie naam speel. Die speletjie teken die verstekvelle vir nou; dit gebruik dit sodra dit kan. 'n Microsoft-rekening se vel en mantel: binnekort.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "Speel vanlyn onder 'n ander naam, en skakel van die boonste balk af. Aanlyn bedieners neem nie vanlyn name nie.",
   "Report on Discord": "Verslag oor Discord",
   "Export": "Uitvoer",

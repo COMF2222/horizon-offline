@@ -48,6 +48,8 @@ pub enum Event {
     QuietCommands,
     /// The server carries mod messages (`horizon_protocol::mod_net`).
     ModNet,
+    /// This offline server negotiated local skin exchange during configuration.
+    OfflineSkins,
     /// The server samples far terrain for this client (`lod_net`).
     FarTerrain(crate::lod_net::Offer),
     /// ClientConfigurationPacketListenerImpl.handleEnabledFeatures.
@@ -1005,6 +1007,7 @@ fn configure(
 ) -> Result<Dynamic, Reason> {
     let mut registries = Dynamic::default();
     let mut content_verified = false;
+    let mut offline_skins = false;
     let reply = |p: cfg::Serverbound| -> Result<(), Reason> {
         match writer.lock().unwrap().as_mut() {
             Some(w) => w
@@ -1040,6 +1043,24 @@ fn configure(
                         &horizon_protocol::mod_list::local(),
                     )),
                 }))?;
+            }
+            cfg::Clientbound::CustomPayload(p)
+                if p.channel == horizon_protocol::offline_skin::CHANNEL
+                    && p.data == [horizon_protocol::offline_skin::VERSION]
+                    && !offline_skins =>
+            {
+                let skin = crate::skins::offline_skin().map(|(rgba, slim)| {
+                    horizon_protocol::offline_skin::Skin {
+                        rgba: rgba.clone(),
+                        slim: *slim,
+                    }
+                });
+                reply(cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                    channel: horizon_protocol::offline_skin::CHANNEL.into(),
+                    data: horizon_protocol::offline_skin::encode_client(skin.as_ref()),
+                }))?;
+                offline_skins = true;
+                let _ = send.send(Event::OfflineSkins);
             }
             cfg::Clientbound::CustomPayload(p) => {
                 // Horizon servers use the client brand to negotiate their extensions.
@@ -1828,6 +1849,95 @@ mod tests {
         assert_eq!(
             lost(horizon_protocol::Error::new("Bad VarInt")),
             "Internal Exception: Bad VarInt"
+        );
+    }
+
+    #[test]
+    fn configuration_uploads_a_local_skin_only_after_negotiation_and_before_the_barrier() {
+        use horizon_protocol::offline_skin;
+        let (client, server) = horizon_protocol::connection::Pipe::pair();
+        let (mut reader, writer) = Connection::local(client).split();
+        let writer = Mutex::new(Some(writer));
+        let (send, events) = channel();
+        let thread = std::thread::spawn(move || {
+            configure(
+                &mut reader,
+                &writer,
+                &AtomicBool::new(true),
+                &Language::new(),
+                &send,
+                &Cookies::default(),
+                Path::new(""),
+            )
+        });
+        let mut server = Connection::local(server);
+        for (offer, id) in [(None, 1), (Some(vec![offline_skin::VERSION + 1]), 2)] {
+            if let Some(data) = offer {
+                server
+                    .send(
+                        &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                            channel: offline_skin::CHANNEL.into(),
+                            data,
+                        })
+                        .encode(),
+                    )
+                    .unwrap();
+            }
+            server
+                .send(&cfg::Clientbound::Ping(cfg::Ping { id }).encode())
+                .unwrap();
+            let (packet, data) = server.recv().unwrap();
+            assert_eq!(
+                cfg::Serverbound::decode(packet, &data).unwrap(),
+                cfg::Serverbound::Pong(cfg::Ping { id })
+            );
+        }
+        let offer = cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+            channel: offline_skin::CHANNEL.into(),
+            data: vec![offline_skin::VERSION],
+        });
+        server.send(&offer.encode()).unwrap();
+        server
+            .send(&cfg::Clientbound::Ping(cfg::Ping { id: 3 }).encode())
+            .unwrap();
+        let (packet, data) = server.recv().unwrap();
+        let cfg::Serverbound::CustomPayload(upload) =
+            cfg::Serverbound::decode(packet, &data).unwrap()
+        else {
+            panic!("the upload must precede Pong3");
+        };
+        assert_eq!(upload.channel, offline_skin::CHANNEL);
+        assert!(offline_skin::decode_client(&upload.data).is_ok());
+        let (packet, data) = server.recv().unwrap();
+        assert_eq!(
+            cfg::Serverbound::decode(packet, &data).unwrap(),
+            cfg::Serverbound::Pong(cfg::Ping { id: 3 })
+        );
+        // Repeated capabilities must not reread or resend the local image.
+        server.send(&offer.encode()).unwrap();
+        server
+            .send(&cfg::Clientbound::Ping(cfg::Ping { id: 4 }).encode())
+            .unwrap();
+        let (packet, data) = server.recv().unwrap();
+        assert_eq!(
+            cfg::Serverbound::decode(packet, &data).unwrap(),
+            cfg::Serverbound::Pong(cfg::Ping { id: 4 })
+        );
+        server
+            .send(&cfg::Clientbound::FinishConfiguration(Empty).encode())
+            .unwrap();
+        let (packet, data) = server.recv().unwrap();
+        assert_eq!(
+            cfg::Serverbound::decode(packet, &data).unwrap(),
+            cfg::Serverbound::FinishConfiguration(Empty)
+        );
+        assert!(thread.join().unwrap().is_ok());
+        assert_eq!(
+            events
+                .try_iter()
+                .filter(|event| matches!(event, Event::OfflineSkins))
+                .count(),
+            1
         );
     }
 

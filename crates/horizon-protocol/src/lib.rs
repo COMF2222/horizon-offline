@@ -17,6 +17,7 @@ pub mod item;
 pub mod menu_extra;
 pub mod mod_list;
 pub mod mod_net;
+pub mod offline_skin;
 pub mod packets;
 pub mod quiet;
 pub mod registry;

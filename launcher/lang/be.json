@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "Перамясціць у сметніцу",
   "Start from": "Пачаць з",
   "Asking Mojang for its versions…": "Запыт у Mojang аб яго версіях...",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "PNG скіна 64×64 (або 64×32) і PNG плашча 64×32, якія захоўваюцца ў праграме запуску і перадаюцца гульні, калі гучыць гэтае імя. На дадзены момант гульня малюе скіны па змаўчанні; ён выкарыстоўвае іх, як толькі можа. Скін і накідка ўліковага запісу Microsoft: хутка.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "Гуляйце ў аўтаномным рэжыме пад іншым імем і пераключайцеся з верхняй панэлі. Інтэрнэт-серверы не прымаюць афлайн-імёны.",
   "Report on Discord": "Справаздача аб Discord",
   "Export": "Экспарт",

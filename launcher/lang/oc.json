@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -375,7 +378,7 @@
   "Move to Trash": "Desplaçar dins l'escobilhièr",
   "Start from": "Començar de",
   "Asking Mojang for its versions…": "Demandant Mojang per sas versions…",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "Un PNG de pèl de 64×64 (o 64×32) e un PNG de capa de 64×32, gardats pel lançaire e donats al jòc quand aqueste nom jòga. Lo jòc dessenha las pèls per defaut per ara; los utiliza un còp que pòt. La pèl e la capa d'un compte Microsoft : a lèu.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "Jogatz fòra linha jos un autre nom, e passatz dempuèi la barra superiora. Los servidors en linha prenon pas de noms fòra linha.",
   "Report on Discord": "Rapòrt sus Discord",
   "Export": "Exportacion",

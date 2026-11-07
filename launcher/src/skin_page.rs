@@ -233,10 +233,9 @@ impl Launcher {
                             Err(e) => text(theme::CAPTION).text_color(t.danger).child(e),
                         }))
                         .child(text(theme::CAPTION).text_color(t.muted).child(tr(
-                            "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the \
-                             launcher and given to the game when this name plays. The game \
-                             draws the default skins for now; it uses these once it can. A \
-                             Microsoft account's skin and cape: coming soon.",
+                            "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other \
+                             players using Horizon Offline receive it when you join their \
+                             world. No Microsoft sign-in is needed.",
                         ))),
                 ),
         )

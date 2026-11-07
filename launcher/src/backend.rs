@@ -16,6 +16,25 @@ pub const AGENT_DOCS_URL: &str = "https://playhorizon.dev/docs/agents";
 /// This launcher's version: the release workflow sets `HORIZON_LAUNCHER_VERSION` from the
 /// tag it builds (no version-bump commits); other builds say Cargo.toml's.
 pub const VERSION: &str = version_or(option_env!("HORIZON_LAUNCHER_VERSION"));
+/// The independently published offline distribution updates as one launcher/game pair.
+pub fn update_version() -> &'static str {
+    if cfg!(feature = "offline") {
+        crate::offline_runtime::VERSION
+    } else {
+        VERSION
+    }
+}
+
+pub fn display_version() -> String {
+    if cfg!(feature = "offline") {
+        crate::i18n::trf(
+            "Offline {version} · Horizon {upstream}",
+            &[("version", update_version()), ("upstream", VERSION)],
+        )
+    } else {
+        VERSION.to_string()
+    }
+}
 /// Launcher releases are tagged `launcher@X.Y.Z` from 0.2 on (docs/versioning.md), and Horizon's
 /// own `vX.Y.Z`. Before 0.2 they were `launcher-vX.Y.Z` and `vYYYY.MM.DD[.N]`: every 0.2 tag is
 /// newer than every one of those ([`release_order`]).
@@ -549,6 +568,11 @@ pub fn launcher_version(tag: &str) -> Option<&str> {
     tag.strip_prefix(LAUNCHER_TAG_PREFIX)
         .or_else(|| tag.strip_prefix(OLD_LAUNCHER_TAG_PREFIX))
         .filter(|v| v.starts_with(|c: char| c.is_ascii_digit()))
+        .or_else(|| {
+            cfg!(feature = "offline")
+                .then(|| crate::offline_update::tag_version(tag))
+                .flatten()
+        })
 }
 
 /// The tag this launcher was released as. launcher.yml gives it (`HORIZON_LAUNCHER_TAG`); a release
@@ -3188,7 +3212,11 @@ pub fn horizon_update(releases: &[Release], installed: &[String]) -> Option<Rele
 /// The newest launcher release with an archive for this platform, if newer than this launcher
 /// ([`own_tag`]: a launcher from before 0.2 takes any `launcher@` release).
 pub fn launcher_update(releases: &[Release]) -> Option<Release> {
-    launcher_update_from(releases, &own_tag())
+    if cfg!(feature = "offline") {
+        None
+    } else {
+        launcher_update_from(releases, &own_tag())
+    }
 }
 
 fn launcher_update_from(releases: &[Release], own: &str) -> Option<Release> {
@@ -3205,6 +3233,19 @@ fn launcher_update_from(releases: &[Release], own: &str) -> Option<Release> {
 pub fn releases_and_updates(
     on_releases: impl FnOnce(Result<Vec<Release>, String>),
 ) -> Result<Updates, String> {
+    if cfg!(feature = "offline") {
+        // Official release metadata must neither block offline startup nor replace
+        // the feature patches carried by this matching launcher/game distribution.
+        on_releases(if crate::offline_runtime::available() {
+            Ok(Vec::new())
+        } else {
+            releases()
+        });
+        return crate::offline_update::check().map(|launcher| Updates {
+            horizon: None,
+            launcher,
+        });
+    }
     releases_and_updates_with(release_list, installed, launcher_releases_in, on_releases)
 }
 
@@ -3223,8 +3264,12 @@ fn releases_and_updates_with(
     };
     let releases = game_releases(&list);
     let installed_versions = installed();
-    let horizon = horizon_update(&installable_updates(&releases), &installed_versions)
-        .or_else(|| architecture_update(&releases, &installed_versions));
+    let horizon = (!crate::offline_runtime::available())
+        .then(|| {
+            horizon_update(&installable_updates(&releases), &installed_versions)
+                .or_else(|| architecture_update(&releases, &installed_versions))
+        })
+        .flatten();
     on_releases(Ok(releases));
     Ok(Updates {
         horizon,
@@ -3265,6 +3310,7 @@ pub fn select_after_update(selected: Option<&str>, installed_before: &[String]) 
         None => true,
         Some(s) if crate::nightly::date_of(s).is_some() => true,
         Some(s) if crate::build_import::is_imported(s) => false,
+        Some(s) if crate::offline_runtime::is_bundled(s) => false,
         Some(s) => installed_before
             .iter()
             .find(|t| is_game_tag(t))
@@ -3275,6 +3321,9 @@ pub fn select_after_update(selected: Option<&str>, installed_before: &[String]) 
 /// Installs `tag` (or with "latest" the newest release, pre-releases left out), then updates the selection as
 /// `select_after_update` says when `as_update`, or always selects it otherwise.
 pub fn install_tag(tag: &str, as_update: bool, progress: impl Fn(f32)) -> Result<String, String> {
+    if tag == "latest" && crate::offline_runtime::available() {
+        return crate::offline_runtime::ensure_installed()?.ok_or_else(no_version_installed);
+    }
     let releases = releases()?;
     let release = if tag == "latest" {
         releases
@@ -3384,9 +3433,9 @@ fn launcher_asset_running_from(appimage: bool) -> Option<&'static str> {
     }
 }
 
-/// Development and offline builds and `HORIZON_LAUNCHER_NO_SELF_UPDATE` never replace themselves.
+/// Development builds, an unsigned offline channel, and explicit opt-outs never replace themselves.
 pub fn self_update_allowed() -> bool {
-    !cfg!(feature = "offline")
+    (!cfg!(feature = "offline") || crate::offline_update::configured())
         && !cfg!(debug_assertions)
         && std::env::var_os("HORIZON_LAUNCHER_NO_SELF_UPDATE").is_none()
 }
@@ -3403,11 +3452,22 @@ fn parse_version_output(out: &str) -> Option<&str> {
 /// update (the command line, another window) has replaced the file.
 pub(crate) fn installed_launcher_version(path: &Path) -> Option<String> {
     let mut cmd = crate::process::command(path);
-    cmd.arg("--version")
-        .stdin(Stdio::null())
-        .stderr(Stdio::null());
+    cmd.arg(if cfg!(feature = "offline") {
+        "--offline-version"
+    } else {
+        "--version"
+    })
+    .stdin(Stdio::null())
+    .stderr(Stdio::null());
     let out = cmd.output().ok()?;
-    parse_version_output(&String::from_utf8_lossy(&out.stdout)).map(String::from)
+    let output = String::from_utf8_lossy(&out.stdout);
+    if cfg!(feature = "offline") {
+        let version = output.trim().strip_prefix("horizon-offline ")?;
+        crate::offline_update::tag_version(&format!("offline-v{version}"))?;
+        Some(version.to_owned())
+    } else {
+        parse_version_output(&output).map(String::from)
+    }
 }
 
 /// Puts `new` at `exe`, the path this launcher started from. The running process keeps its
@@ -3795,12 +3855,28 @@ pub fn stage_update(release: &Release, progress: impl Fn(f32)) -> Result<Option<
         .clone()
         .ok_or("This launcher release has no build for this platform.")?;
     let target = launcher_version(&release.tag).unwrap_or("0");
+    if cfg!(feature = "offline") {
+        let Some(version) = crate::offline_update::tag_version(&release.tag) else {
+            return Err(crate::i18n::tr("This update is not from Horizon Offline.").to_string());
+        };
+        if semver::Version::parse(update_version())
+            .ok()
+            .zip(semver::Version::parse(version).ok())
+            .is_none_or(|(current, offered)| offered <= current)
+        {
+            return Ok(None);
+        }
+    }
     if installed_launcher_version(&update_target())
-        .is_some_and(|v| v != VERSION && compare_versions(&v, target).is_ge())
+        .is_some_and(|v| v != update_version() && compare_versions(&v, target).is_ge())
     {
         return Ok(None);
     }
-    let sha256 = signed_digest(&release.tag, launcher_asset().unwrap_or_default())?;
+    let sha256 = if cfg!(feature = "offline") {
+        crate::offline_update::digest(release)?
+    } else {
+        signed_digest(&release.tag, launcher_asset().unwrap_or_default())?
+    };
     let work = update_work_dir();
     remove_abandoned_stages(&work, std::time::SystemTime::now(), process_alive);
     let stage = new_stage_folder(&work)?;
@@ -3884,7 +3960,14 @@ pub fn place_staged(staged: &Staged) -> Result<(), String> {
 
 /// The website's install page, where a launcher that can't update itself sends the player.
 pub fn download_page(website: &str) -> String {
-    format!("{}/docs/install", website.trim_end_matches('/'))
+    if cfg!(feature = "offline") {
+        format!(
+            "https://github.com/{}/releases/latest",
+            crate::offline_update::REPO
+        )
+    } else {
+        format!("{}/docs/install", website.trim_end_matches('/'))
+    }
 }
 
 /// Whether this copy of the launcher can't put a new one in its place: its folder is read-only (a
@@ -4421,7 +4504,7 @@ impl Settings {
     }
     /// Whether new Horizon versions are installed automatically.
     pub fn auto_install(&self) -> bool {
-        self.install_new_versions.unwrap_or(true)
+        !crate::offline_runtime::available() && self.install_new_versions.unwrap_or(true)
     }
     /// Whether old versions are deleted after an install.
     pub fn auto_prune(&self) -> bool {
@@ -6087,7 +6170,10 @@ pub fn {f}("
         );
         assert!(horizon_update(&releases, &["v2026.10.13".into()]).is_none());
         assert!(launcher_update(&[r("launcher-v0.0.1")]).is_none());
-        assert!(launcher_update(&[r("launcher@99.0.0")]).is_some());
+        assert_eq!(
+            launcher_update(&[r("launcher@99.0.0")]).is_some(),
+            !cfg!(feature = "offline")
+        );
         assert!(launcher_update_from(&[r("launcher-v99.0.0")], "launcher-v0.16.0").is_some());
         let installed = ["v2026.10.12".to_string(), "v2026.10.1".to_string()];
         assert!(select_after_update(Some("v2026.10.12"), &installed));
@@ -6096,6 +6182,10 @@ pub fn {f}("
         assert!(!select_after_update(
             Some("imported-2026-11-01-abcdef0"),
             &["imported-2026-11-01-abcdef0".to_string()]
+        ));
+        assert!(!select_after_update(
+            Some("offline-bundled-0123456789abcdef"),
+            &["offline-bundled-0123456789abcdef".to_string()]
         ));
     }
 

@@ -108,6 +108,9 @@ pub struct Guest {
     pub name: String,
     /// The profile's properties, for the player list (skins).
     pub properties: Vec<horizon_protocol::packets::login::Property>,
+    /// This connection's normalized local skin; never a texture URL supplied by a guest.
+    pub offline_skin: Option<horizon_protocol::offline_skin::Skin>,
+    pub supports_offline_skin: bool,
     pub entity_id: i32,
     pub sender: PlayerSender,
     pub latency: Arc<AtomicI32>,
@@ -429,6 +432,8 @@ impl Guest {
             uuid: j.uuid,
             name: j.name,
             properties: j.properties,
+            offline_skin: j.offline_skin.filter(|_| j.supports_offline_skin),
+            supports_offline_skin: j.supports_offline_skin,
             entity_id,
             sender: j.sender,
             latency: j.latency,
@@ -1571,6 +1576,8 @@ mod tests {
                 uuid: 0,
                 name: "guest".into(),
                 properties: Vec::new(),
+                offline_skin: None,
+                supports_offline_skin: false,
                 info: ClientInformation::new(8),
                 brand: String::new(),
                 sender: PlayerSender::new(tx, Arc::new(std::sync::atomic::AtomicUsize::new(0))),

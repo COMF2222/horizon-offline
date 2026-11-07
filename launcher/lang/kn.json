@@ -1,4 +1,7 @@
 {
+  "Offline {version} · Horizon {upstream}": "Offline {version} · Horizon {upstream}",
+  "This update is not from Horizon Offline.": "This update is not from Horizon Offline.",
+  "Could not install the bundled Horizon game: {error}": "Could not install the bundled Horizon game: {error}",
   "Downloading Minecraft {version} from Mojang for offline play": "Downloading Minecraft {version} from Mojang for offline play",
   "Could not download Minecraft {version} from Mojang: {error}": "Could not download Minecraft {version} from Mojang: {error}",
   "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.": "Play downloads Minecraft {version} and Java from Mojang once. Then you can play offline without signing in.",
@@ -374,7 +377,7 @@
   "Move to Trash": "ಅನುಪಯುಕ್ತಕ್ಕೆ ಸರಿಸಿ",
   "Start from": "ನಿಂದ ಪ್ರಾರಂಭಿಸಿ",
   "Asking Mojang for its versions…": "ಅದರ ಆವೃತ್ತಿಗಳಿಗಾಗಿ Mojang ಕೇಳಲಾಗುತ್ತಿದೆ...",
-  "A 64×64 (or 64×32) skin PNG and a 64×32 cape PNG, kept by the launcher and given to the game when this name plays. The game draws the default skins for now; it uses these once it can. A Microsoft account's skin and cape: coming soon.": "64×64 (ಅಥವಾ 64×32) ಸ್ಕಿನ್ PNG ಮತ್ತು 64×32 ಕೇಪ್ PNG, ಲಾಂಚರ್‌ನಿಂದ ಇರಿಸಲಾಗುತ್ತದೆ ಮತ್ತು ಈ ಹೆಸರು ಆಡಿದಾಗ ಆಟಕ್ಕೆ ನೀಡಲಾಗುತ್ತದೆ. ಆಟವು ಇದೀಗ ಡೀಫಾಲ್ಟ್ ಸ್ಕಿನ್‌ಗಳನ್ನು ಸೆಳೆಯುತ್ತದೆ; ಇದು ಸಾಧ್ಯವಾದಾಗ ಒಮ್ಮೆ ಇವುಗಳನ್ನು ಬಳಸುತ್ತದೆ. ಎ Microsoft ಖಾತೆಯ ಸ್ಕಿನ್ ಮತ್ತು ಕೇಪ್: ಶೀಘ್ರದಲ್ಲೇ ಬರಲಿದೆ.",
+  "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.": "Choose a 64×64 (or 64×32) skin PNG for this offline name. Other players using Horizon Offline receive it when you join their world. No Microsoft sign-in is needed.",
   "Play offline under another name, and switch from the top bar. Online servers don't take offline names.": "ಇನ್ನೊಂದು ಹೆಸರಿನಲ್ಲಿ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿ ಪ್ಲೇ ಮಾಡಿ ಮತ್ತು ಮೇಲಿನ ಪಟ್ಟಿಯಿಂದ ಬದಲಿಸಿ. ಆನ್‌ಲೈನ್ ಸರ್ವರ್‌ಗಳು ಆಫ್‌ಲೈನ್ ಹೆಸರುಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳುವುದಿಲ್ಲ.",
   "Report on Discord": "Discord ಕುರಿತು ವರದಿ ಮಾಡಿ",
   "Export": "ರಫ್ತು ಮಾಡಿ",
