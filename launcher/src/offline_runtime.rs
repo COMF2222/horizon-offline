@@ -43,7 +43,7 @@ pub fn is_bundled(tag: &str) -> bool {
 
 /// The display label for our immutable version, without its internal content hash.
 pub fn label(tag: &str) -> Option<String> {
-    is_bundled(tag).then(|| format!("{} · {VERSION}", i18n::tr("Offline")))
+    is_bundled(tag).then(|| i18n::trf("Offline {version}", &[("version", VERSION)]))
 }
 
 /// Install before the CLI, MCP server, or window resolves a game version. A new executable carries
