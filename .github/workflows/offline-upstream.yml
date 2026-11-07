@@ -1,0 +1,39 @@
+name: Horizon Offline upstream updates
+
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Retry the current upstream release after a failed build
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: offline-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: github.repository == 'COMF2222/horizon-offline' && vars.OFFLINE_AUTO_UPDATES == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare a conservative update candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          args=()
+          [[ "$FORCE" != true ]] || args+=(--force)
+          python3 tools/offline_upstream.py prepare "${args[@]}"

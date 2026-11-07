@@ -4,6 +4,27 @@ on:
   push:
     tags: ['offline-v*']
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Source branch or commit to test (empty uses this workflow's commit)
+        type: string
+        default: ''
+      publish_tag:
+        description: Release tag offline-vX.Y.Z (empty uses a tag ref, or builds artifacts only)
+        type: string
+        default: ''
+      publish:
+        description: Publish the signed release after all checks
+        type: boolean
+        default: false
+      promote:
+        description: Promote a scheduled upstream candidate to main after all checks
+        type: boolean
+        default: false
+      base_sha:
+        description: Main commit used by the upstream candidate (automatic updates only)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -13,52 +34,163 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      source_ref: ${{ steps.source.outputs.source_ref }}
+      release_tag: ${{ steps.source.outputs.release_tag }}
+      offline_version: ${{ steps.source.outputs.offline_version }}
+      publish: ${{ steps.source.outputs.publish }}
+      promote: ${{ steps.source.outputs.promote }}
+      base_sha: ${{ steps.source.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve and validate build source
+        id: source
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          PUBLISH_TAG: ${{ inputs.publish_tag }}
+          PUBLISH: ${{ inputs.publish || false }}
+          PROMOTE: ${{ inputs.promote || false }}
+          BASE_SHA: ${{ inputs.base_sha }}
+        run: python3 tools/offline_upstream.py resolve
+
+  protocol:
+    needs: resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: offline-protocol
+          cache-workspace-crates: true
+      - name: Test the skin wire format and upstream merge policy
+        run: |
+          python3 -m unittest discover -s tests -p test_offline_upstream.py
+          cargo test --locked -p horizon-protocol --lib
+
   windows:
+    needs: resolve
     runs-on: windows-latest
-    timeout-minutes: 60
-    permissions:
-      contents: write
+    timeout-minutes: 180
     env:
-      # A standalone .exe must not require the Visual C++ redistributable.
       RUSTFLAGS: -C target-feature=+crt-static
       HORIZON_TELEMETRY_URL: 'off'
       HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
       HORIZON_NO_AUDIO: '1'
       HORIZON_NO_KEYCHAIN: '1'
+      HORIZON_OFFLINE_VERSION: ${{ needs.resolve.outputs.offline_version }}
+      HORIZON_VERSION: ${{ needs.resolve.outputs.offline_version }}-offline
     defaults:
       run:
         shell: pwsh
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: launcher
-          shared-key: offline-windows-x64
+          workspaces: |
+            .
+            launcher
+          shared-key: offline-windows-x64-v2
+          cache-workspace-crates: true
+      - name: Stamp the verified upstream launcher base
+        run: |
+          git fetch --no-tags https://github.com/horizon-rust/horizon.git 'refs/tags/launcher@*:refs/tags/launcher@*'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bases = @(git tag --merged HEAD --list 'launcher@*' | Where-Object { $_ -match '^launcher@\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Substring(9) } -Descending)
+          if ($bases.Count -eq 0) { throw 'No verified upstream launcher release is an ancestor of this source.' }
+          $baseTag = $bases[0]
+          $baseVersion = $baseTag.Substring(9)
+          "HORIZON_LAUNCHER_VERSION=$baseVersion" >> $env:GITHUB_ENV
+          "HORIZON_LAUNCHER_TAG=$baseTag" >> $env:GITHUB_ENV
+          Write-Output "Verified upstream base: $baseTag; Horizon Offline: $env:HORIZON_OFFLINE_VERSION"
       - name: Isolate test data
         run: |
           $scratch = Join-Path $env:RUNNER_TEMP 'horizon-offline-tests'
           foreach ($name in @('HORIZON_HOME', 'HORIZON_LAUNCHER_HOME', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'HORIZON_LAUNCHER_TRASH', 'HORIZON_LAUNCHER_CLIPBOARD', 'HORIZON_LAUNCHER_DESKTOP')) {
             "$name=$(Join-Path $scratch $name)" >> $env:GITHUB_ENV
           }
-      - name: Check formatting
-        run: cargo fmt --manifest-path launcher/Cargo.toml --all -- --check
-      - name: Check public files
-        run: python tools/check_public_tree.py
+      - name: Check formatting and public files
+        run: |
+          cargo fmt --all -- --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo fmt --manifest-path launcher/Cargo.toml --all -- --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/check_public_tree.py
       - name: Test offline profiles and launcher behavior
         run: cargo test --manifest-path launcher/Cargo.toml --release --locked --features offline --lib --bins --tests
-      - name: Check lints
+      - name: Check launcher lints
         run: cargo clippy --manifest-path launcher/Cargo.toml --release --locked --features offline --all-targets -- -D warnings
+      - name: Build our game, control tool, preparer, and server
+        run: |
+          cargo build --profile fast --locked -p horizon-client -p horizon-client-lib --bin horizon-client --bin horizon-ctl -p horizon-prepare --bin horizon-prepare -p horizon-server --bin horizon-server
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/check_pe_arch.py x64 target/fast/horizon-client.exe target/fast/horizon-ctl.exe target/fast/horizon-prepare.exe target/fast/horizon-server.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/check_imports.py target/fast/horizon-client.exe target/fast/horizon-ctl.exe target/fast/horizon-prepare.exe target/fast/horizon-server.exe
+      - name: Test skin transport and rendering state
+        run: |
+          cargo test --profile fast --locked -p horizon-client-lib --lib skin
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --profile fast --locked -p horizon-client --bin horizon-client skin
+      - name: Stage only our runtime and matching preparer sources
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'offline-runtime'
+          $sources = Join-Path $env:RUNNER_TEMP 'offline-runtime-sources.zip'
+          $archive = Join-Path $env:RUNNER_TEMP 'offline-runtime.zip'
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          # Original exporter source only. No game JARs, compiled Mojang classes or .local/.
+          git archive --format=zip --output "$sources" HEAD tools mods/horizon/src/test/java crates/horizon-prepare research-lock.json LICENSE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Expand-Archive -LiteralPath $sources -DestinationPath $stage
+          foreach ($program in @('horizon-client', 'horizon-ctl', 'horizon-prepare', 'horizon-server')) {
+            Copy-Item -LiteralPath "target/fast/$program.exe" -Destination $stage
+          }
+          Copy-Item -LiteralPath packaging/PLAY.txt -Destination $stage
+          Compress-Archive -Path "$stage/*" -DestinationPath $archive -CompressionLevel Optimal
+          "HORIZON_OFFLINE_RUNTIME_ARCHIVE=$archive" >> $env:GITHUB_ENV
       - name: Build standalone launcher
         run: cargo build --manifest-path launcher/Cargo.toml --release --locked --features offline --bin horizon-launcher
-      - name: Package executable
+      - name: Verify bundled startup and version identity
+        run: |
+          $program = (Resolve-Path launcher/target/release/horizon-launcher.exe).Path
+          $reported = (& $program --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $reported -ne "horizon-launcher $env:HORIZON_LAUNCHER_VERSION") { throw "Incorrect launcher version: $reported" }
+          $offlineReported = (& $program --offline-version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $offlineReported -ne "horizon-offline $env:HORIZON_OFFLINE_VERSION") { throw "Incorrect distribution version: $offlineReported" }
+          & $program account offline BundleSmoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $settings = Get-Content -LiteralPath "$env:HORIZON_LAUNCHER_HOME/settings.json" -Raw | ConvertFrom-Json
+          if ($settings.selected -notlike 'offline-bundled-*') { throw 'The bundled game was not selected automatically.' }
+          $runtime = Join-Path $env:HORIZON_LAUNCHER_HOME "versions/$($settings.selected)"
+          foreach ($name in @('horizon-client.exe', 'horizon-prepare.exe', 'research-lock.json', '.installed', '.offline-runtime.sha256')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $runtime $name))) { throw "Missing bundled runtime file: $name" }
+          }
+      - name: Verify three real clients share skins without Microsoft
+        run: |
+          $program = (Resolve-Path launcher/target/release/horizon-launcher.exe).Path
+          python tools/offline_skin_e2e.py --launcher "$program" --out "$env:RUNNER_TEMP/offline-skin-e2e" --headless
+      - name: Package standalone executable and authenticated updater archive
         run: |
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Copy-Item -LiteralPath launcher/target/release/horizon-launcher.exe -Destination dist/Horizon-Offline.exe
+          Compress-Archive -LiteralPath launcher/target/release/horizon-launcher.exe -DestinationPath dist/horizon-offline-windows-x64.zip -CompressionLevel Optimal
           python tools/check_pe_arch.py x64 dist/Horizon-Offline.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item -LiteralPath LICENSE,THIRD_PARTY_NOTICES.md -Destination dist
@@ -68,11 +200,80 @@ jobs:
           name: Horizon-Offline-Windows-x64
           path: dist/*
           if-no-files-found: error
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/offline-v')
+      - name: Retain only our binaries for debugging a failed build
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Horizon-Offline-Diagnostics
+          path: |
+            launcher/target/release/horizon-launcher.exe
+            target/fast/horizon-client.exe
+            target/fast/horizon-ctl.exe
+            target/fast/horizon-prepare.exe
+          if-no-files-found: ignore
+          retention-days: 3
+
+  publish:
+    needs: [resolve, protocol, windows]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.resolve.outputs.release_tag }}
+      SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+      SOURCE_REF: ${{ needs.resolve.outputs.source_ref }}
+      PROMOTE: ${{ needs.resolve.outputs.promote }}
+      BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+    steps:
+      # The candidate being compiled never sees the publisher's secret or write token.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: Horizon-Offline-Windows-x64
+          path: dist
+      - name: Sign the exact built files with our publisher key
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.OFFLINE_RELEASE_SIGNING_KEY }}
+        run: |
+          test -n "$RELEASE_SIGNING_KEY" || { echo 'Publisher signing key is not configured' >&2; exit 1; }
+          bash tools/ci/sign_release.sh "$TAG" dist/Horizon-Offline.exe dist/horizon-offline-windows-x64.zip
+          cp dist/SHA256SUMS dist/SHA256SUMS.txt
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: offline-publisher
+      - name: Verify the signature and both downloads as the launcher does
+        run: cargo run --locked --quiet -p horizon-release-sign -- verify --tag "$TAG" --key "$(cat packaging/offline/release-keys.txt)" dist
+      - name: Publish the checked update, promoting a sync candidate only if main has not changed
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$env:RELEASE_TAG" dist/Horizon-Offline.exe dist/SHA256SUMS.txt dist/LICENSE dist/THIRD_PARTY_NOTICES.md --verify-tag --title "Horizon Offline $env:RELEASE_TAG" --notes-file packaging/offline/RELEASE.md --latest
+          set -euo pipefail
+          git fetch --no-tags origin "$SOURCE_SHA"
+          if [[ "$PROMOTE" == true ]]; then
+            git fetch --no-tags origin main
+            current=$(git rev-parse 'FETCH_HEAD^{commit}')
+            [[ "$current" == "$BASE_SHA" ]] || { echo 'Main changed during the build; keep the current release and retry from the new main.' >&2; exit 1; }
+            git merge-base --is-ancestor "$BASE_SHA" "$SOURCE_SHA"
+          fi
+          if gh release view "$TAG" --json isDraft --jq '.isDraft' > /tmp/offline-release-draft; then
+            [[ $(cat /tmp/offline-release-draft) == true ]] || { echo 'A published release with this tag already exists; it is immutable.' >&2; exit 1; }
+            git fetch --no-tags origin "refs/tags/$TAG"
+            [[ $(git rev-parse 'FETCH_HEAD^{commit}') == "$SOURCE_SHA" ]] || { echo 'Existing draft tag identifies another commit.' >&2; exit 1; }
+            gh release upload "$TAG" dist/Horizon-Offline.exe dist/horizon-offline-windows-x64.zip dist/SHA256SUMS dist/SHA256SUMS.sig dist/SHA256SUMS.txt dist/LICENSE dist/THIRD_PARTY_NOTICES.md --clobber
+          else
+            gh release create "$TAG" --target "$SOURCE_SHA" --draft --title "Horizon Offline $TAG" --notes-file packaging/offline/RELEASE.md dist/Horizon-Offline.exe dist/horizon-offline-windows-x64.zip dist/SHA256SUMS dist/SHA256SUMS.sig dist/SHA256SUMS.txt dist/LICENSE dist/THIRD_PARTY_NOTICES.md
+          fi
+          git fetch --no-tags origin "refs/tags/$TAG"
+          [[ $(git rev-parse 'FETCH_HEAD^{commit}') == "$SOURCE_SHA" ]] || { echo 'Release tag identifies another commit.' >&2; exit 1; }
+          if [[ "$PROMOTE" == true ]]; then
+            gh api --method PATCH "repos/$GH_REPO/git/refs/heads/main" -f sha="$SOURCE_SHA" -F force=false > /dev/null
+          fi
+          gh release edit "$TAG" --draft=false --latest
