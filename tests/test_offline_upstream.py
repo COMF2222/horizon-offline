@@ -103,6 +103,59 @@ class CandidateMerge(unittest.TestCase):
             sync.require_release_ancestry(self.common, state)
         sync.require_release_ancestry(released_commit, state)
 
+    def locale_branches(self, original, ours, theirs):
+        path = "launcher/lang/ru.json"
+        self.write(path, json.dumps(original, indent=2) + "\n")
+        common = self.commit("shared translations")
+        self.write(path, json.dumps(ours, indent=2) + "\n")
+        base = self.commit("fork translations")
+        self.run_git("checkout", "-b", "vendor", common)
+        self.write(path, json.dumps(theirs, indent=2) + "\n")
+        upstream = self.commit("upstream translations")
+        self.run_git("checkout", "main")
+        return path, base, upstream
+
+    def test_independent_translation_additions_do_not_block_updates(self):
+        path, base, upstream = self.locale_branches(
+            {"shared": "original"},
+            {"shared": "original", "offline": "our local profile"},
+            {"shared": "original", "new upstream": "new feature"})
+        state = dict(launcher_tag="launcher@0.2.48", game_name="fixture")
+        candidate = sync.merged_candidate(base, upstream, state)
+        self.assertEqual(json.loads(self.run_git("show", f"{candidate}:{path}")),
+                         {"shared": "original", "offline": "our local profile", "new upstream": "new feature"})
+        self.assertEqual(self.run_git("status", "--porcelain"), "")
+
+    def test_upstream_translation_does_not_restore_a_message_replaced_by_the_fork(self):
+        path, base, upstream = self.locale_branches(
+            {"old caption": "old", "shared": "old shared"},
+            {"our caption": "LAN skins", "shared": "old shared"},
+            {"old caption": "new translation", "shared": "improved shared"})
+        candidate = sync.merged_candidate(base, upstream,
+                                          dict(launcher_tag="launcher@0.2.48", game_name="fixture"))
+        self.assertEqual(json.loads(self.run_git("show", f"{candidate}:{path}")),
+                         {"our caption": "LAN skins", "shared": "improved shared"})
+
+    def test_two_different_edits_of_the_same_translation_require_review(self):
+        _, base, upstream = self.locale_branches(
+            {"caption": "old"}, {"caption": "our translation"}, {"caption": "their translation"})
+        with self.assertRaisesRegex(sync.Refused, "translation merge conflicts"):
+            sync.merged_candidate(base, upstream, {})
+        self.assertEqual(self.run_git("status", "--porcelain"), "")
+
+    def test_conflicting_publisher_changes_keep_our_publisher(self):
+        path = ".github/workflows/offline-release.yml"
+        self.write(path, "updated fork publisher\n")
+        base = self.commit("fork publisher")
+        self.run_git("checkout", "-b", "vendor", self.common)
+        self.write(path, "different vendor publisher\n")
+        upstream = self.commit("vendor publisher")
+        self.run_git("checkout", "main")
+        candidate = sync.merged_candidate(base, upstream,
+                                          dict(launcher_tag="launcher@0.2.48", game_name="fixture"))
+        self.assertEqual(self.run_git("show", f"{candidate}:{path}"), "updated fork publisher")
+        self.assertEqual(self.run_git("status", "--porcelain"), "")
+
 
 class DispatchValidation(unittest.TestCase):
     def test_invalid_source_never_reaches_fetch(self):
